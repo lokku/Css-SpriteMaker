@@ -316,8 +316,8 @@ sub _identify_image {
     $rh_info->{width} = $Image->Get('columns');
     $rh_info->{height} = $Image->Get('rows');
     $rh_info->{format} = $Image->Get('format');
-    $rh_info->{colors} = $Image->Get('colors');
     $rh_info->{comment} = $Image->Get('comment');
+    $rh_info->{colors}{total} = $Image->Get('colors');
 
     if ($self->{remove_source_padding}) {
         #
@@ -394,7 +394,43 @@ sub _identify_image {
         $rh_info->{height} = $first_bottom - $first_top + 1;
     }
 
+    # Store information about the color of each pixel
+    $rh_info->{colors}{map} = {};
+    for my $x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
+        for my $y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
+            my $color = $Image->Get(
+                sprintf('pixel[%s,%s]', $x, $y),
+            );
+            push @{$rh_info->{colors}{map}{$color}}, {
+                x => $x,
+                y => $y,
+            };
+        }
+    }
+
     return $rh_info; 
+}
+
+=head2 _generate_color_histogram
+
+Generate color histogram out of the information structure of all the images.
+
+=cut
+
+sub _generate_color_histogram {
+    my $self           = shift;
+    my $rh_source_info = shift;
+
+    my %histogram;
+    for my $id (keys %$rh_source_info) {
+        for my $color (keys %{ $rh_source_info->{$id}{colors}{map} }) {
+            my $rah_colors_info = $rh_source_info->{$id}{colors}{map}{$color};
+
+            $histogram{$color} = scalar @$rah_colors_info;
+        }
+    }
+
+    return \%histogram;
 }
 
 =head2 _verbose
