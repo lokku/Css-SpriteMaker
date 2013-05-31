@@ -126,6 +126,18 @@ sub make {
         };
     }
 
+    # generate color histogram
+    my %color_histogram = %{$self->_generate_color_histogram(\%source_info)};
+    $self->_verbose("Total number of colors: " . keys %color_histogram);
+    # TODO - how can we reduce this to a palette of 256 total colors?
+    # PROBLEM - what do we do with semi-transparent pixels? we can only choose between transparent/not transparent.
+    # PROBLEM - change the colours in the image, in a way that the colours don't look too different from the original ones.
+    # SOLUTION: for the transparent color let the user decide a threshold on the alpha channel that activates the transparency.
+    # SOLUTION: 1 - map all colors between 0 and quantum size. 
+    #           2 - map these values in 256 bins uniformly
+    #           3 - if there are remaining bins, re-map portions of crowded bins into remaining bins
+    #           4 - create a color map out of the remaining bins...
+
     # devise the best layout
     my $rh_layout = $self->layout_items(\%source_info);
 
