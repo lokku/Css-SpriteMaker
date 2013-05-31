@@ -6,20 +6,9 @@ use warnings;
 use File::Find;
 use Image::Magick;
 
-use CSS::SpriteMaker::BinPacker;
+use CSS::SpriteMaker::BinPacking;
 
 use POSIX qw(ceil);
-
-# use Cwd            qw/realpath getcwd chdir/;
-# use File::Path     qw/mkpath rmtree/;
-# use File::Basename qw/fileparse/;
-# use File::Spec     qw/catpath splitpath/;
-# use Config::Simple;
-# use File::Which    qw/which/;
-# use Getopt::Long;
-# use File::Copy;
-# use IPC::Run3      qw/run3/;
-# use Sort::Key      qw/nkeysort/;
 
 
 =head1 NAME
@@ -138,7 +127,7 @@ sub make {
     }
 
     # devise the best layout
-    my $rh_layout = $self->layout_items2(\%source_info);
+    my $rh_layout = $self->layout_items(\%source_info);
 
     # make our image
     $self->_verbose(sprintf("Target image size: %s, %s",
@@ -238,41 +227,7 @@ $rh_layout = {
 =cut
 
 sub layout_items {
-    my $self = shift;
-    my $rh_items_info = shift;
-
-    # our result layout structure
-    my $rh_layout = {
-        width => 0,
-        height => 0,
-        items => {},
-    };
-
-    my $x = 0;
-    my $y = 0;
-    my $maxheight = 0;
-    for my $item_id (keys %$rh_items_info) {
-        my $rh_item_info = $rh_items_info->{$item_id};
-
-        $self->_verbose("Layout: placing item $item_id @ $x, $y");
-        $rh_layout->{items}{$item_id} = { x => $x, y => $y };
-        $x += $rh_item_info->{width};
-
-        # compute the maximum height found so far
-        if ($maxheight < $rh_item_info->{height}) {
-            $maxheight = $rh_item_info->{height};
-        }
-    }
-
-    # set overall properties for the devised layout
-    $rh_layout->{width} = $x;
-    $rh_layout->{height} = $maxheight;
-
-    return $rh_layout;
-}
-
-sub layout_items2 {
-    my $self = shift;
+    my $self          = shift;
     my $rh_items_info = shift;
 
     # our result layout structure
@@ -286,42 +241,53 @@ sub layout_items2 {
     my @items_sorted =
         sort {
             $rh_items_info->{$b}{height}
-            <=>
+                <=>
             $rh_items_info->{$a}{height}
         }
         keys %$rh_items_info;
    
-    my $Packer = CSS::SpriteMaker::BinPacker->new(
-        w => $rh_items_info->{$items_sorted[0]}{width},
-        h => $rh_items_info->{$items_sorted[0]}{height},
-    );
+    # pack the items
+    my $Packer = CSS::SpriteMaker::BinPacking->new();
 
+    # copy the items into blocks (input for the packer)
     my @blocks = map {
-        {
-            w => $rh_items_info->{$_}{width},
-            h => $rh_items_info->{$_}{height},
+        { w => $rh_items_info->{$_}{width},
+          h => $rh_items_info->{$_}{height}, 
+          id => $_,
         }
     } @items_sorted;
 
+    # fit each block
     $Packer->fit(\@blocks);
 
-    my $width = 0;
-    my $height = 0;
-    for my $id (@items_sorted) {
-        my $block = shift @blocks;
+    my $max_w = 0;
+    my $max_h = 0;
+    for my $rh_block (@blocks) {
 
-        if ($block->{fit}) {
-            $rh_layout->{items}{$id} = {
-                x => $block->{fit}{x},
-                y => $block->{fit}{y},
+        my $block_id = $rh_block->{id};
+
+        if ($rh_block->{fit}) {
+            
+            # convert to more clean output - i.e., take from the packed boxes
+            # the only two information that we're interested in and augment our
+            # layout
+            $rh_layout->{items}{$block_id} = {
+                x => $rh_block->{fit}{x},
+                y => $rh_block->{fit}{y},
             };
+            
+            # compute the overall width/height
+            $max_w = $rh_block->{fit}{w} if $max_w < $rh_block->{fit}{w};
+            $max_h = $rh_block->{fit}{h} if $max_h < $rh_block->{fit}{h};
         }
-        $width = $block->{fit}{w} if $width < $block->{fit}{w};
-        $height = $block->{fit}{h} if $height < $block->{fit}{h};
+        else {
+            warn "Wasn't able to fit block $block_id";
+        }
     }
 
-    $rh_layout->{width} = $width;
-    $rh_layout->{height} = $height;
+    # write dimensions in the resulting layout
+    $rh_layout->{width} = $max_w;
+    $rh_layout->{height} = $max_h;
 
     return $rh_layout;
 }

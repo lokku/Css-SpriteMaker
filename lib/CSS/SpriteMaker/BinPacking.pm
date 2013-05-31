@@ -1,78 +1,45 @@
-package CSS::SpriteMaker::BinPacker;
+package CSS::SpriteMaker::BinPacking;
 
 use strict;
 use warnings;
 
 
-=head DESCRIPTION
+=head1 NAME
 
-This is a very simple binary tree based bin packing algorithm that is initialized
-with a fixed width and height and will fit each block into the first node where
-it fits and then split that node into 2 parts (down and right) to track the
-remaining whitespace.
+CSS::SpriteMaker::BinPacking - Attempt to optimally pack multiple boxes into a rectangular bin.
 
-Best results occur when the input blocks are sorted by height, or even better
-when sorted by max(width,height).
+Basically, a Perl port of packer.growing.js (https://npmjs.org/package/binpacking)
 
-Inputs:
-------
+=cut
 
-  w:       width of target rectangle
-  h:      height of target rectangle
-  blocks: array of any objects that have .w and .h attributes
+=head1 SYNOPSIS
 
-Outputs:
--------
+    use CSS::SpriteMaker::BinPacking;
 
-  marks each block that fits with a .fit attribute pointing to a
-  node with .x and .y coordinates
+    # initialize the packer
+    my $Packer = CSS::SpriteMaker::BinPacking->new();
 
-Example:
--------
+    # create some blocks
+    my @blocks = (
+        { w => 120 , h => 150 },
+        { w => 64 , h => 64 },
+        { w => 80 , h => 40 },
+        { w => 100 , h => 200 },
+        { w => 56 , h => 50 },
+    );
 
-  var blocks = [
-    { w: 100, h: 100 },
-    { w: 100, h: 100 },
-    { w:  80, h:  80 },
-    { w:  80, h:  80 },
-    etc
-    etc
-  ];
+    # fit the blocks into a rectangular bin
+    $Packer->fit(\@blocks);
 
-  var packer = new Packer(500, 500);
-  packer.fit(blocks);
+=cut
 
-  for(var n = 0 ; n < blocks.length ; n++) {
-    var block = blocks[n];
-    if (block.fit) {
-      Draw(block.fit.x, block.fit.y, block.w, block.h);
-    }
-  }
-
+=head2 new
 
 =cut
 
 sub new {
     my $class = shift;
-    my %params = @_;
-
-    my $self = bless {}, $class;
-
-    $self->_init($params{w}, $params{h});
-
-    return $self;
-}
-
-sub _init {
-    my $self = shift;
-    my ($w, $h) = @_; 
-
-    $self->{root} = { 
-        x => 0, 
-        y => 0, 
-        w => $w, 
-        h => $h
-    };
+    return bless {}, $class;
 }
 
 sub fit {
@@ -85,6 +52,7 @@ sub fit {
         w => $ra_blocks->[0]{w},
         h => $ra_blocks->[0]{h},
     };
+
     for my $rh_block (@$ra_blocks) {
         if (my $node = $self->find_node($self->{root}, $rh_block->{w}, $rh_block->{h})) {
             $rh_block->{fit} = $self->split_node($node, $rh_block->{w}, $rh_block->{h});
@@ -92,8 +60,13 @@ sub fit {
         else {
             $rh_block->{fit} = $self->grow_node($rh_block->{w}, $rh_block->{h});
         }
+
     }
 }
+
+=head2 find_node
+
+=cut
 
 sub find_node {
     my $self = shift;
@@ -212,6 +185,5 @@ sub grow_down {
         return 0;
     }
 }
-
 
 1;
