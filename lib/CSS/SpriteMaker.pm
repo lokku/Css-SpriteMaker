@@ -31,6 +31,7 @@ our $VERSION = '0.01';
     my $SpriteMaker = CSS::SpriteMaker->new(
         source_dir => '/tmp/test/images',
         target_file => '/tmp/test/mysprite.png',
+        format => 'png8',           # optional
         remove_source_padding => 1, # optional
         verbose => 1,               # optional
     );
@@ -53,6 +54,7 @@ The object must be initialised as follows:
     my $cleanup = File::Cleanup->new({
         source_dir => '/tmp/test/images',
         target_file => '/tmp/test/mysprite.png'
+        format => 'png',
         remove_source_padding => 1,
         verbose => 1,
     });
@@ -65,11 +67,13 @@ sub new {
     # defaults
     $opts{remove_source_padding} //= 1;
     $opts{verbose}               //= 1;
+    $opts{format}                //= 'png';
     
     my $self = {
         source_dir => $opts{source_dir},
         target_file => $opts{target_file},
         is_verbose => $opts{verbose},
+        format => $opts{format},
         remove_source_padding => $opts{remove_source_padding},
 
         # the maximum color value
@@ -80,6 +84,8 @@ sub new {
 }
 
 =head2 make
+
+Creates the CSS sprite according to the current configuration.
 
 =cut
 
@@ -114,7 +120,7 @@ sub make {
     # collect properties of each input image
     IMAGE:
     for my $id (keys %source_info) {
-        my %properties = %{$self->_identify_image(
+        my %properties = %{$self->_get_image_properties(
             $source_info{$id}{pathname}
         )};
 
@@ -149,7 +155,10 @@ sub make {
         my $rh_source_info = $source_info{$source_id};
 
         my $I = Image::Magick->new(); 
-        $self->_verbose("Placing " . $rh_source_info->{pathname});
+        $self->_verbose(sprintf("Placing %s (%s)",
+            $rh_source_info->{pathname},
+            $rh_source_info->{format})
+        );
 
         # read input image again
         my $err = $I->Read($rh_source_info->{pathname});
@@ -177,8 +186,11 @@ sub make {
     }
 
     # write target image
-    my $n = $Target->Write(filename => "$self->{target_file}");
-    $self->_verbose("Wrote $n");
+    my $err = $Target->Write("$self->{format}:".$self->{target_file});
+    if ($err) {
+        warn "unable to opten $self->{target_file} for writing it as $self->{format}. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats.";
+
+        $self->_verbose("Wrote $self->{target_file}");
 
     return;
 }
@@ -292,13 +304,13 @@ sub layout_items {
     return $rh_layout;
 }
 
-=head2 _identify_image
+=head2 _get_image_properties
 
 Return an hashref of information about the image at the given pathname.
 
 =cut
 
-sub _identify_image {
+sub _get_image_properties {
     my $self       = shift;
     my $image_path = shift;
 
@@ -318,6 +330,7 @@ sub _identify_image {
     $rh_info->{format} = $Image->Get('format');
     $rh_info->{comment} = $Image->Get('comment');
     $rh_info->{colors}{total} = $Image->Get('colors');
+    $rh_info->{format} = $Image->Get('magick');
 
     if ($self->{remove_source_padding}) {
         #
