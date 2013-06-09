@@ -3,6 +3,8 @@ package CSS::SpriteMaker;
 use strict;
 use warnings;
 
+use feature qw(say);
+
 use File::Find;
 use Image::Magick;
 
@@ -87,6 +89,8 @@ sub new {
 
 Creates the CSS sprite according to the current configuration.
 
+Returns true if the image was successfully created and false otherwise.
+
 =cut
 
 sub make {
@@ -135,16 +139,117 @@ sub make {
     # devise the best layout
     my $rh_layout = $self->layout_items(\%source_info);
 
-    # make our image
+
+    # save image
+    my $err = $self->_write_sprite($rh_layout, \%source_info);
+
+    # save stylesheet
+    $err += $self->_write_stylesheet($rh_layout, \%source_info);
+
+    return !$err;
+}
+
+=head2 _write_stylesheet
+
+Creates the stylesheet for the sprite that was just produced. Follows the
+format specified on creation.
+
+=cut
+sub _write_stylesheet {
+    my $self = shift;
+    my $rh_layout = shift;
+    my $rh_sources_info = shift;
+
+    # a list of classes
+    my @classes =
+        map { $self->_generate_css_class_name($_) }
+        map { my $name = $_; $name =~ s/@//g; $name }
+        map { $rh_sources_info->{$_}{name} }
+        keys %$rh_sources_info;
+
+    say '<html><head><style type="text/css">';
+
+    # write header
+    # header associates the sprite image to each class
+    say sprintf("%s { background-image: url('%s'); background-repeat: no-repeat; }",
+        join(",", @classes),
+        'sample_icons.png'
+    );
+
+    # now take care of individual sections
+    for my $id (keys %$rh_sources_info) {
+        my $rh_source_info = $rh_sources_info->{$id};
+        my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
+
+        say sprintf("%s { background-position: %spx %spx; width: %spx; height: %spx; }",
+            $css_class,
+            -1 * $rh_layout->{items}{$id}{x},
+            -1 * $rh_layout->{items}{$id}{y},
+            $rh_source_info->{width},
+            $rh_source_info->{height},
+        );
+    }
+    
+    say '</style></head><body>';
+
+    # html
+    for my $id (keys %$rh_sources_info) {
+        my $rh_source_info = $rh_sources_info->{$id};
+        my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
+
+        $css_class =~ s/[.]//;
+
+        say "<div class=\"$css_class\"></div>";
+    }
+
+    return 0;
+}
+
+=head2 _generate_css_class_name
+
+This method generates the name of the CSS class for a certain image file. Takes
+the image filename as input and produces a css class name (including the .)
+
+=cut
+
+sub _generate_css_class_name {
+    my $self = shift;
+    my $filename = shift;
+
+    # prepare
+    my $css_class = $filename;
+
+    # remove the extension if any
+    $css_class =~ s/[.].*\Z//i;
+
+    return ".$css_class";
+}
+
+=head2 _write_sprite
+
+Actually creates the sprite file according to the given layout.
+
+=cut
+
+sub _write_sprite {
+    my $self = shift;
+    my $rh_layout = shift;
+    my $rh_sources_info = shift;
+
+
     $self->_verbose(sprintf("Target image size: %s, %s",
         $rh_layout->{width},
         $rh_layout->{height})
     );
+
     my $Target = Image::Magick->new();
+
     $Target->Set(size => sprintf("%sx%s",
         $rh_layout->{width},
         $rh_layout->{height}
     ));
+
+    # prepare the target image
     $Target->ReadImage('canvas:transparent');
     $Target->Set(type => 'TruecolorMatte');
 
@@ -152,22 +257,22 @@ sub make {
     ITEM_ID:
     for my $source_id (keys %{$rh_layout->{items}}) {
         my $rh_source_layout = $rh_layout->{items}{$source_id};
-        my $rh_source_info = $source_info{$source_id};
+        my $rh_source_info = $rh_sources_info->{$source_id};
 
-        my $I = Image::Magick->new(); 
         $self->_verbose(sprintf("Placing %s (%s)",
             $rh_source_info->{pathname},
             $rh_source_info->{format})
         );
 
-        # read input image again
+        # read input image (again - we will be reading individual pixels soon)
+        my $I = Image::Magick->new(); 
         my $err = $I->Read($rh_source_info->{pathname});
         if ($err) {
             warn $err;
             next ITEM_ID;
         }
 
-        # place soure image in the target image
+        # place soure image in the target image according to the layout
         my $destx = $rh_source_layout->{x};
         my $startx = $rh_source_info->{first_pixel_x};
         my $starty = $rh_source_info->{first_pixel_y};
@@ -188,11 +293,14 @@ sub make {
     # write target image
     my $err = $Target->Write("$self->{format}:".$self->{target_file});
     if ($err) {
-        warn "unable to opten $self->{target_file} for writing it as $self->{format}. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats.";
+        warn "unable to opten $self->{target_file} for writing it as $self->{format}. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats";
 
         $self->_verbose("Wrote $self->{target_file}");
 
-    return;
+        return 1;
+    }
+
+    return 0;
 }
 
 =head2 layout_items
@@ -252,9 +360,9 @@ sub layout_items {
     # sort items by height
     my @items_sorted =
         sort {
-            $rh_items_info->{$b}{height}
+            $rh_items_info->{$b}{width}
                 <=>
-            $rh_items_info->{$a}{height}
+            $rh_items_info->{$a}{width}
         }
         keys %$rh_items_info;
    
@@ -278,19 +386,18 @@ sub layout_items {
 
         my $block_id = $rh_block->{id};
 
-        if ($rh_block->{fit}) {
-            
-            # convert to more clean output - i.e., take from the packed boxes
+        if (my $rh_fit = $rh_block->{fit}) {
+            # convert to more clean structure - i.e., take from the packed boxes
             # the only two information that we're interested in and augment our
             # layout
             $rh_layout->{items}{$block_id} = {
-                x => $rh_block->{fit}{x},
-                y => $rh_block->{fit}{y},
+                x => $rh_fit->{x},
+                y => $rh_fit->{y},
             };
             
             # compute the overall width/height
-            $max_w = $rh_block->{fit}{w} if $max_w < $rh_block->{fit}{w};
-            $max_h = $rh_block->{fit}{h} if $max_h < $rh_block->{fit}{h};
+            $max_w = $rh_fit->{w} + $rh_fit->{x} if $max_w < $rh_fit->{w} + $rh_fit->{x};
+            $max_h = $rh_fit->{h} + $rh_fit->{y} if $max_h < $rh_fit->{h} + $rh_fit->{y};
         }
         else {
             warn "Wasn't able to fit block $block_id";
@@ -327,7 +434,6 @@ sub _get_image_properties {
     $rh_info->{first_pixel_y} = 0,
     $rh_info->{width} = $Image->Get('columns');
     $rh_info->{height} = $Image->Get('rows');
-    $rh_info->{format} = $Image->Get('format');
     $rh_info->{comment} = $Image->Get('comment');
     $rh_info->{colors}{total} = $Image->Get('colors');
     $rh_info->{format} = $Image->Get('magick');
