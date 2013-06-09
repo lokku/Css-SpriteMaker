@@ -68,7 +68,7 @@ sub new {
 
     # defaults
     $opts{remove_source_padding} //= 1;
-    $opts{verbose}               //= 1;
+    $opts{verbose}               //= 0;
     $opts{format}                //= 'png';
     
     my $self = {
