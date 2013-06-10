@@ -7,7 +7,7 @@ use CSS::SpriteMaker;
 
 my $SpriteMaker = CSS::SpriteMaker->new(
     source_dir => "./sample_icons/",
-    target_file => "/Users/darksmo/gits/CSS-SpriteMaker/sample_icons.png",
+    target_file => "/home/savio/gits/CSS-SpriteMaker/sample_icons.png",
 );
 
 $SpriteMaker->make();

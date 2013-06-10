@@ -293,7 +293,7 @@ sub _write_sprite {
     # write target image
     my $err = $Target->Write("$self->{format}:".$self->{target_file});
     if ($err) {
-        warn "unable to opten $self->{target_file} for writing it as $self->{format}. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats";
+        warn "unable to obtain $self->{target_file} for writing it as $self->{format}. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats";
 
         $self->_verbose("Wrote $self->{target_file}");
 
