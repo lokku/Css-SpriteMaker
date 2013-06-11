@@ -112,12 +112,16 @@ sub make {
     find(sub {
         my $filename = $_;
         my $fullpath = $File::Find::name;
-
+        my $parentdir = $File::Find::dir;
+    
         return if $filename eq '.';
 
-        $source_info{$id}{name} = $filename;
-        $source_info{$id}{pathname} = $fullpath;
-        $id++;
+        if (-f $filename) {
+            $source_info{$id}{name} = $filename;
+            $source_info{$id}{pathname} = $fullpath;
+            $source_info{$id}{parentdir} = $parentdir;
+            $id++;
+        }
 
     }, $self->{source_dir});
 
@@ -137,8 +141,7 @@ sub make {
     }
 
     # devise the best layout
-    my $rh_layout = $self->layout_items(\%source_info);
-
+    my $rh_layout = $self->layout_items_bydir(\%source_info);
 
     # save image
     my $err = $self->_write_sprite($rh_layout, \%source_info);
@@ -178,16 +181,19 @@ sub _write_stylesheet {
 
     # now take care of individual sections
     for my $id (keys %$rh_sources_info) {
-        my $rh_source_info = $rh_sources_info->{$id};
-        my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
 
-        say sprintf("%s { background-position: %spx %spx; width: %spx; height: %spx; }",
-            $css_class,
-            -1 * $rh_layout->{items}{$id}{x},
-            -1 * $rh_layout->{items}{$id}{y},
-            $rh_source_info->{width},
-            $rh_source_info->{height},
-        );
+        if (defined $rh_layout->{items}{$id}) {
+            my $rh_source_info = $rh_sources_info->{$id};
+            my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
+
+            say sprintf("%s { background-position: %spx %spx; width: %spx; height: %spx; }",
+                $css_class,
+                -1 * $rh_layout->{items}{$id}{x},
+                -1 * $rh_layout->{items}{$id}{y},
+                $rh_source_info->{width},
+                $rh_source_info->{height},
+            );
+        }
     }
     
     say '</style></head><body>';
@@ -407,6 +413,77 @@ sub layout_items {
     # write dimensions in the resulting layout
     $rh_layout->{width} = $max_w;
     $rh_layout->{height} = $max_h;
+
+    return $rh_layout;
+}
+
+=head2 layout_items_bydir
+
+Lay out items according to their parent directory name. Items that are found in
+the same directory will be grouped in the same row. A group of items in one row
+is sorted by file name.
+
+See layout_items for more information as the format of the returned hash is the
+same.
+
+=cut
+
+sub layout_items_bydir {
+    my $self          = shift;
+    my $rh_items_info = shift;
+
+    # our result layout structure
+    my $rh_layout = {
+        width  => 0,  # the width of the overall layout
+        height => 0,  # the height of the overall layout
+        items  => {},  # the position of items { id => {x => ... , y => ... } }
+    };
+
+    # 1. sort items by directory, then filename
+    my @items_id_sorted = 
+    sort {
+        $rh_items_info->{$a}{pathname}
+            cmp
+        $rh_items_info->{$b}{pathname}
+    }
+    keys %$rh_items_info;
+
+    
+    # 2. put items from the same directory in the same row
+    my $x = 0;
+    my $y = 0;
+    my $total_height = 0;
+    my $total_width = 0;
+    my $row_height = 0;
+
+    my $parentdir_prev;
+    for my $id (@items_id_sorted) {
+        my $w = $rh_items_info->{$id}{width};
+        my $h = $rh_items_info->{$id}{height};
+        my $parentdir = $rh_items_info->{$id}{parentdir};
+
+        if (defined $parentdir_prev && $parentdir ne $parentdir_prev) {
+            # next row!
+            $y += $row_height;
+            $x = 0;
+            $row_height = 0;
+        }
+
+        # chain on this row...
+        $rh_layout->{items}{$id} = {
+            x => $x,
+            y => $y
+        };
+        $x += $w;
+        $row_height = $h if $h > $row_height;
+        $total_width = $x if $x > $total_width;
+        $total_height = $y + $row_height if $y + $row_height > $total_height;
+
+        $parentdir_prev = $parentdir;
+    }
+
+    $rh_layout->{width} = $total_width;
+    $rh_layout->{height} = $total_height;
 
     return $rh_layout;
 }
