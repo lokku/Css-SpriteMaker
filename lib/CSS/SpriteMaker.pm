@@ -58,6 +58,7 @@ The object must be initialised as follows:
         target_file => '/tmp/test/mysprite.png'
         format => 'png',
         remove_source_padding => 1,
+        same_size => 0,
         verbose => 1,
     });
 
@@ -70,6 +71,7 @@ sub new {
     $opts{remove_source_padding} //= 1;
     $opts{verbose}               //= 0;
     $opts{format}                //= 'png';
+    $opts{same_size}             //= 0;
     
     my $self = {
         source_dir => $opts{source_dir},
@@ -79,7 +81,7 @@ sub new {
         remove_source_padding => $opts{remove_source_padding},
 
         # the maximum color value
-        color_max => (2^Image::Magick->QuantumDepth) - 1,
+        color_max => 2 ** Image::Magick->QuantumDepth - 1,
     };
 
     return bless $self, $class;
@@ -108,6 +110,7 @@ sub make {
     my $source_total = 0;
 
     # the filenames of the images
+    $self->_verbose(" * gathering files and directories of source images");
     my $id = 0;
     find(sub {
         my $filename = $_;
@@ -125,6 +128,8 @@ sub make {
 
     }, $self->{source_dir});
 
+    $self->_verbose(" * analysing source images");
+
     # collect properties of each input image
     IMAGE:
     for my $id (keys %source_info) {
@@ -141,13 +146,15 @@ sub make {
     }
 
     # devise the best layout
+    $self->_verbose(" * creating layout");
     my $rh_layout = $self->layout_items_bydir(\%source_info);
 
     # save image
+    $self->_verbose(" * writing sprite image");
     my $err = $self->_write_sprite($rh_layout, \%source_info);
 
     # save stylesheet
-    $err += $self->_write_stylesheet($rh_layout, \%source_info);
+    # $err += $self->_write_stylesheet($rh_layout, \%source_info);
 
     return !$err;
 }
@@ -256,8 +263,19 @@ sub _write_sprite {
     ));
 
     # prepare the target image
-    $Target->ReadImage('canvas:transparent');
+    if (my $err = $Target->ReadImage('xc:white')) {
+        warn $err;
+    }
     $Target->Set(type => 'TruecolorMatte');
+    
+    # make it transparent
+    $self->_verbose(" - clearing canvas");
+    $Target->Draw(
+        fill => 'transparent', 
+        primitive => 'rectangle', 
+        points => "0,0 $rh_layout->{width},$rh_layout->{height}"
+    );
+    $Target->Transparent('color' => 'white');
 
     # place each image according to the layout
     ITEM_ID:
@@ -265,7 +283,7 @@ sub _write_sprite {
         my $rh_source_layout = $rh_layout->{items}{$source_id};
         my $rh_source_info = $rh_sources_info->{$source_id};
 
-        $self->_verbose(sprintf("Placing %s (%s)",
+        $self->_verbose(sprintf(" - placing %s (%s)",
             $rh_source_info->{pathname},
             $rh_source_info->{format})
         );
@@ -299,7 +317,7 @@ sub _write_sprite {
     # write target image
     my $err = $Target->Write("$self->{format}:".$self->{target_file});
     if ($err) {
-        warn "unable to obtain $self->{target_file} for writing it as $self->{format}. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats";
+        warn "unable to obtain $self->{target_file} for writing it as $self->{format}. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats. Error: $err";
 
         $self->_verbose("Wrote $self->{target_file}");
 
@@ -366,9 +384,9 @@ sub layout_items {
     # sort items by height
     my @items_sorted =
         sort {
-            $rh_items_info->{$b}{width}
+            $rh_items_info->{$b}{height}
                 <=>
-            $rh_items_info->{$a}{width}
+            $rh_items_info->{$a}{height}
         }
         keys %$rh_items_info;
    
@@ -556,7 +574,6 @@ sub _get_image_properties {
         }
         $rh_info->{first_pixel_x} = $first_left;
         $rh_info->{width} = $first_right - $first_left + 1;
-        
 
         # seek for top/bottom borders
         my $first_top = 0;
