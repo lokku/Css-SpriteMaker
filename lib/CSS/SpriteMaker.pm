@@ -8,7 +8,8 @@ use feature qw(say);
 use File::Find;
 use Image::Magick;
 
-use CSS::SpriteMaker::BinPacking;
+use CSS::SpriteMaker::Layout::DirectoryBased;
+use CSS::SpriteMaker::Layout::Packed;
 
 use POSIX qw(ceil);
 
@@ -147,14 +148,17 @@ sub make {
 
     # devise the best layout
     $self->_verbose(" * creating layout");
-    my $rh_layout = $self->layout_items_bydir(\%source_info);
+    my $Layout = CSS::SpriteMaker::Layout::DirectoryBased->new(\%source_info);
+    $Layout = CSS::SpriteMaker::Layout::Packed->new(\%source_info);
+
+    # my $rh_layout = $self->layout_items(\%source_info);
 
     # save image
     $self->_verbose(" * writing sprite image");
-    my $err = $self->_write_sprite($rh_layout, \%source_info);
+    my $err = $self->_write_sprite($Layout, \%source_info);
 
     # save stylesheet
-    # $err += $self->_write_stylesheet($rh_layout, \%source_info);
+    $err += $self->_write_stylesheet($Layout, \%source_info);
 
     return !$err;
 }
@@ -246,20 +250,19 @@ Actually creates the sprite file according to the given layout.
 
 sub _write_sprite {
     my $self = shift;
-    my $rh_layout = shift;
+    my $Layout = shift;
     my $rh_sources_info = shift;
 
-
     $self->_verbose(sprintf("Target image size: %s, %s",
-        $rh_layout->{width},
-        $rh_layout->{height})
+        $Layout->width(),
+        $Layout->height())
     );
 
     my $Target = Image::Magick->new();
 
     $Target->Set(size => sprintf("%sx%s",
-        $rh_layout->{width},
-        $rh_layout->{height}
+        $Layout->width(),
+        $Layout->height()
     ));
 
     # prepare the target image
@@ -273,20 +276,24 @@ sub _write_sprite {
     $Target->Draw(
         fill => 'transparent', 
         primitive => 'rectangle', 
-        points => "0,0 $rh_layout->{width},$rh_layout->{height}"
+        points => sprintf("0,0 %s,%s", $Layout->width(), $Layout->height())
     );
     $Target->Transparent('color' => 'white');
 
     # place each image according to the layout
     ITEM_ID:
-    for my $source_id (keys %{$rh_layout->{items}}) {
-        my $rh_source_layout = $rh_layout->{items}{$source_id};
+    for my $source_id ($Layout->get_item_ids) {
         my $rh_source_info = $rh_sources_info->{$source_id};
+        my ($layout_x, $layout_y) = $Layout->get_item_coord($source_id);
 
-        $self->_verbose(sprintf(" - placing %s (%s)",
+        $self->_verbose(sprintf(" - placing %s (format: %s  size: %sx%s  position: [%s,%s])",
             $rh_source_info->{pathname},
-            $rh_source_info->{format})
-        );
+            $rh_source_info->{format},
+            $rh_source_info->{width},
+            $rh_source_info->{height},
+            $layout_y,
+            $layout_x
+        ));
 
         # read input image (again - we will be reading individual pixels soon)
         my $I = Image::Magick->new(); 
@@ -297,11 +304,11 @@ sub _write_sprite {
         }
 
         # place soure image in the target image according to the layout
-        my $destx = $rh_source_layout->{x};
+        my $destx = $layout_x;
         my $startx = $rh_source_info->{first_pixel_x};
         my $starty = $rh_source_info->{first_pixel_y};
         for my $x ($startx .. $startx + $rh_source_info->{width} - 1) {
-            my $desty = $rh_source_layout->{y};
+            my $desty = $layout_y;
             for my $y ($starty .. $starty + $rh_source_info->{height} - 1) {
                 my $p = $I->Get(
                     sprintf('pixel[%s,%s]', $x, $y),
@@ -325,185 +332,6 @@ sub _write_sprite {
     }
 
     return 0;
-}
-
-=head2 layout_items
-
-Lay out items on a 2D space. Information about width and height of each item
-must be known a priori.
-
-The input information structure is expected to be a hashref of the form:
-
-$rh_items_info = {
-    'item_id_1' => {
-        width => 300,
-        height => 250,
-    },
-    'item_id_2' => {
-        width => 100,
-        height => 100,
-    },
-    # ... more items
-}
-
-The output layout structure contains information about the dimension of the 2D
-space and tells where each item will be placed. For each item, this resulting
-structure indicates the starting (x, y) coordinate in the 2D space, with 
-(0, 0) being the top left pixel.
-
-This structure looks like:
-
-$rh_layout = {
-    width => 400,   # layout is 300px wide
-    height => 250,  # layout is 250px high
-    items {
-        'item_id_1' => {
-            'x' => 0,
-            'y' => 0,
-        },
-        'item_id_2' => {
-            'x' => 300,
-            'y' => 0,
-        },
-    }
-}
-
-=cut
-
-sub layout_items {
-    my $self          = shift;
-    my $rh_items_info = shift;
-
-    # our result layout structure
-    my $rh_layout = {
-        width  => 0,
-        height => 0,
-        items  => {},
-    };
-
-    # sort items by height
-    my @items_sorted =
-        sort {
-            $rh_items_info->{$b}{height}
-                <=>
-            $rh_items_info->{$a}{height}
-        }
-        keys %$rh_items_info;
-   
-    # pack the items
-    my $Packer = CSS::SpriteMaker::BinPacking->new();
-
-    # copy the items into blocks (input for the packer)
-    my @blocks = map {
-        { w => $rh_items_info->{$_}{width},
-          h => $rh_items_info->{$_}{height}, 
-          id => $_,
-        }
-    } @items_sorted;
-
-    # fit each block
-    $Packer->fit(\@blocks);
-
-    my $max_w = 0;
-    my $max_h = 0;
-    for my $rh_block (@blocks) {
-
-        my $block_id = $rh_block->{id};
-
-        if (my $rh_fit = $rh_block->{fit}) {
-            # convert to more clean structure - i.e., take from the packed boxes
-            # the only two information that we're interested in and augment our
-            # layout
-            $rh_layout->{items}{$block_id} = {
-                x => $rh_fit->{x},
-                y => $rh_fit->{y},
-            };
-            
-            # compute the overall width/height
-            $max_w = $rh_fit->{w} + $rh_fit->{x} if $max_w < $rh_fit->{w} + $rh_fit->{x};
-            $max_h = $rh_fit->{h} + $rh_fit->{y} if $max_h < $rh_fit->{h} + $rh_fit->{y};
-        }
-        else {
-            warn "Wasn't able to fit block $block_id";
-        }
-    }
-
-    # write dimensions in the resulting layout
-    $rh_layout->{width} = $max_w;
-    $rh_layout->{height} = $max_h;
-
-    return $rh_layout;
-}
-
-=head2 layout_items_bydir
-
-Lay out items according to their parent directory name. Items that are found in
-the same directory will be grouped in the same row. A group of items in one row
-is sorted by file name.
-
-See layout_items for more information as the format of the returned hash is the
-same.
-
-=cut
-
-sub layout_items_bydir {
-    my $self          = shift;
-    my $rh_items_info = shift;
-
-    # our result layout structure
-    my $rh_layout = {
-        width  => 0,  # the width of the overall layout
-        height => 0,  # the height of the overall layout
-        items  => {},  # the position of items { id => {x => ... , y => ... } }
-    };
-
-    # 1. sort items by directory, then filename
-    my @items_id_sorted = 
-    sort {
-        $rh_items_info->{$a}{pathname}
-            cmp
-        $rh_items_info->{$b}{pathname}
-    }
-    keys %$rh_items_info;
-
-    
-    # 2. put items from the same directory in the same row
-    my $x = 0;
-    my $y = 0;
-    my $total_height = 0;
-    my $total_width = 0;
-    my $row_height = 0;
-
-    my $parentdir_prev;
-    for my $id (@items_id_sorted) {
-        my $w = $rh_items_info->{$id}{width};
-        my $h = $rh_items_info->{$id}{height};
-        my $parentdir = $rh_items_info->{$id}{parentdir};
-
-        if (defined $parentdir_prev && $parentdir ne $parentdir_prev) {
-            # next row!
-            $y += $row_height;
-            $x = 0;
-            $row_height = 0;
-        }
-
-        # chain on this row...
-        $rh_layout->{items}{$id} = {
-            x => $x,
-            y => $y
-        };
-        $x += $w;
-        $row_height = $h if $h > $row_height;
-        $total_width = $x if $x > $total_width;
-        $total_height = $y + $row_height if $y + $row_height > $total_height;
-
-        $parentdir_prev = $parentdir;
-    }
-
-    $rh_layout->{width} = $total_width;
-    $rh_layout->{height} = $total_height;
-
-    return $rh_layout;
 }
 
 =head2 _get_image_properties

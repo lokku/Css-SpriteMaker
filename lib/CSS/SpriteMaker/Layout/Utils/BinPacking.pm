@@ -1,4 +1,4 @@
-package CSS::SpriteMaker::BinPacking;
+package CSS::SpriteMaker::Layout::Utils::BinPacking;
 
 use strict;
 use warnings;
@@ -6,7 +6,7 @@ use warnings;
 
 =head1 NAME
 
-CSS::SpriteMaker::BinPacking - Attempt to optimally pack multiple boxes into a rectangular bin.
+CSS::SpriteMaker::Layout::Utils::BinPacking - Attempt to optimally pack multiple boxes into a rectangular bin.
 
 Basically, a Perl port of packer.growing.js (https://npmjs.org/package/binpacking)
 
