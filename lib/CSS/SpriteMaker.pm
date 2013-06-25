@@ -37,6 +37,8 @@ our $VERSION = '0.01';
         format => 'png8',           # optional
         remove_source_padding => 1, # optional
         verbose => 1,               # optional
+        output_css_file => /path/to/file.css,   # optional
+        output_html_file => /path/to/file.html  # optional
     );
 
     $SpriteMaker->make();
@@ -54,13 +56,15 @@ Create and configure a new CSS::SpriteMaker object.
 
 The object must be initialised as follows:
     
-    my $cleanup = File::Cleanup->new({
+    my $SpriteMaker = CSS::SpriteMaker->new({
         source_dir => '/tmp/test/images',
         target_file => '/tmp/test/mysprite.png'
         format => 'png',
         remove_source_padding => 1,
         same_size => 0,
         verbose => 1,
+        output_css_file => /path/to/file.css,
+        output_html_file => /path/to/file.html,
     });
 
 =cut
@@ -80,6 +84,8 @@ sub new {
         is_verbose => $opts{verbose},
         format => $opts{format},
         remove_source_padding => $opts{remove_source_padding},
+        output_css_file => $opts{output_css_file},
+        output_html_file => $opts{output_html_file},
 
         # the maximum color value
         color_max => 2 ** Image::Magick->QuantumDepth - 1,
@@ -158,22 +164,29 @@ sub make {
     my $err = $self->_write_sprite($Layout, \%source_info);
 
     # save stylesheet
-    $err += $self->_write_stylesheet($Layout, \%source_info);
+    if (defined $self->{output_css_file}) {
+        $err += $self->_write_stylesheet($Layout, \%source_info);
+    }
+    if (defined $self->{output_html_file}) {
+        $err += $self->_write_html($Layout, \%source_info);
+    }
 
     return !$err;
 }
 
-=head2 _write_stylesheet
+=head2 _get_stylesheet_string
 
-Creates the stylesheet for the sprite that was just produced. Follows the
-format specified on creation.
+Returns the stylesheet in a string.
 
 =cut
-sub _write_stylesheet {
-    my $self = shift;
-    my $rh_layout = shift;
+
+sub _get_stylesheet_string {
+    my $self            = shift;
+    my $rh_layout       = shift;
     my $rh_sources_info = shift;
 
+    my @stylesheet;
+    
     # a list of classes
     my @classes =
         map { $self->_generate_css_class_name($_) }
@@ -181,13 +194,11 @@ sub _write_stylesheet {
         map { $rh_sources_info->{$_}{name} }
         keys %$rh_sources_info;
 
-    say '<html><head><style type="text/css">';
-
     # write header
     # header associates the sprite image to each class
-    say sprintf("%s { background-image: url('%s'); background-repeat: no-repeat; }",
+    push @stylesheet, sprintf("%s { background-image: url('%s'); background-repeat: no-repeat; }",
         join(",", @classes),
-        'sample_icons.png'
+        $self->{target_file}
     );
 
     # now take care of individual sections
@@ -197,7 +208,7 @@ sub _write_stylesheet {
             my $rh_source_info = $rh_sources_info->{$id};
             my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
 
-            say sprintf("%s { background-position: %spx %spx; width: %spx; height: %spx; }",
+            push @stylesheet, sprintf("%s { background-position: %spx %spx; width: %spx; height: %spx; }",
                 $css_class,
                 -1 * $rh_layout->{items}{$id}{x},
                 -1 * $rh_layout->{items}{$id}{y},
@@ -206,8 +217,73 @@ sub _write_stylesheet {
             );
         }
     }
+
+    return join "\n", @stylesheet;
+}
+
+=head2 _write_stylesheet
+
+Creates the stylesheet for the sprite that was just produced. Follows the
+format specified on creation.
+
+=cut
+
+sub _write_stylesheet {
+    my $self            = shift;
+    my $rh_layout       = shift;
+    my $rh_sources_info = shift;
+
+    $self->_verbose("  * writing " . $self->{output_css_file});
+
+    open my ($fh), '>', $self->{output_css_file};
+
+    my $stylesheet = $self->_get_stylesheet_string($rh_layout, $rh_sources_info);
+
+    print $fh $stylesheet;
+
+    close $fh;
+
+    return 0;
+}
+
+=head2 _write_html
+
+Creates a sample html webpage for the sprite produced.
+
+=cut
+sub _write_html {
+    my $self = shift;
+    my $rh_layout = shift;
+    my $rh_sources_info = shift;
     
-    say '</style></head><body>';
+    $self->_verbose("  * writing " . $self->{output_html_file});
+
+    my $stylesheet = $self->_get_stylesheet_string($rh_layout, $rh_sources_info);
+
+    open my ($fh), '>', $self->{output_html_file};
+
+    print $fh '<html><head><style type="text/css">';
+    print $fh $stylesheet;
+    print $fh <<EOCSS;
+    .color {
+        width: 10px;
+        height: 10px;
+        margin: 1px;
+        float: left;
+        border: 1px solid black;
+    }
+    .item-container {
+        clear: both;
+        background-color: #BCE;
+        width: 340px;
+        margin: 10px;
+        -webkit-border-radius: 10px;
+        -moz-border-radius: 10px;
+        -o-border-radius: 10px;
+        border-radius: 10px;
+    }
+EOCSS
+    print $fh '</style></head><body>';
 
     # html
     for my $id (keys %$rh_sources_info) {
@@ -216,8 +292,28 @@ sub _write_stylesheet {
 
         $css_class =~ s/[.]//;
 
-        say "<div class=\"$css_class\"></div>";
+        print $fh '<div class="item-container">';
+        print $fh "  <div class=\"item $css_class\"></div>";
+        print $fh "  <div class=\"item_description\">";
+        for my $key (keys %$rh_source_info) {
+            next if $key eq "colors";
+            print $fh "<b>" . $key . "</b>: " . ($rh_source_info->{$key} // 'none') . "<br />";
+        }
+        print $fh '<h3>Colors</h3>';
+            print $fh "<b>total</b>: " . $rh_source_info->{colors}{total} . '<br />';
+            for my $colors (keys %{$rh_source_info->{colors}{map}}) {
+                my ($r, $g, $b, $a) = split /,/, $colors;
+                my $rrgb = $r * 255 / $self->{color_max};
+                my $grgb = $g * 255 / $self->{color_max};
+                my $brgb = $b * 255 / $self->{color_max};
+                my $argb = 255 - ($a * 255 / $self->{color_max});
+                print $fh '<div class="color" style="background-color: ' . "rgba($rrgb, $grgb, $brgb, $argb);\"></div>";
+            }
+        print $fh "  </div>";
+        print $fh '</div>';
     }
+
+    print $fh "</body></html>";
 
     return 0;
 }
@@ -294,8 +390,6 @@ sub _write_sprite {
             $layout_y,
             $layout_x
         ));
-
-        # read input image (again - we will be reading individual pixels soon)
         my $I = Image::Magick->new(); 
         my $err = $I->Read($rh_source_info->{pathname});
         if ($err) {

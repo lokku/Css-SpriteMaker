@@ -8,6 +8,10 @@ use CSS::SpriteMaker;
 my $SpriteMaker = CSS::SpriteMaker->new(
     source_dir => "./sample_icons/",
     target_file => "/home/savio/gits/CSS-SpriteMaker/sample_icons.png",
+    remove_source_padding => 1,
+    verbose => 1,
+    output_html_file => 'foo.html',
+    output_css_file => 'foo.css',
 );
 
 $SpriteMaker->make();
