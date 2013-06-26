@@ -13,4 +13,7 @@ ok($SpriteMaker, 'created CSS::SpriteMaker instance');
 
 $SpriteMaker->make();
 
+ok (-f "sample_sprite.png", 'sample_sprite.png was generated')
+    && unlink "sample_sprite.png";
+
 done_testing();
