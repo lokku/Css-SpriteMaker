@@ -33,6 +33,10 @@ Basically, a Perl port of packer.growing.js (https://npmjs.org/package/binpackin
 
 =cut
 
+=head1 METHODS
+
+=cut
+
 =head2 new
 
 =cut
@@ -41,6 +45,10 @@ sub new {
     my $class = shift;
     return bless {}, $class;
 }
+
+=head2 fit
+
+=cut
 
 sub fit {
     my $self      = shift;
@@ -84,6 +92,10 @@ sub find_node {
     }
 }
 
+=head2 split_node
+
+=cut
+
 sub split_node {
     my $self = shift;
     my ($node, $w, $h) = @_;
@@ -105,6 +117,10 @@ sub split_node {
 
     return $node;
 }
+
+=head2 grow_node
+
+=cut
 
 sub grow_node {
     my ($self, $w, $h) = @_;
@@ -135,6 +151,10 @@ sub grow_node {
     }
 }
 
+=head2 grow_right
+
+=cut
+
 sub grow_right {
     my ($self, $w, $h) = @_;
     $self->{root} = {
@@ -159,6 +179,10 @@ sub grow_right {
       return 0;
     }
 }
+
+=head2 grow_down
+
+=cut
 
 sub grow_down {
     my ($self, $w, $h) = @_;
