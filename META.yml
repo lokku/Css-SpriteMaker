@@ -1,5 +1,5 @@
 ---
-abstract: 'Combine several images into a CSS sprite'
+abstract: 'Combine several images into a single CSS sprite'
 author:
   - 'Savio Dimatteo <savio@lokku.com>'
 build_requires:
@@ -18,17 +18,12 @@ build_requires:
   Test::Pod::Coverage: 0
 configure_requires:
   Module::Build: 0.38
-dynamic_config: 1
-generated_by: 'Module::Build version 0.38, CPAN::Meta::Converter version 2.110440'
+generated_by: 'Module::Build version 0.3601'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
-name: CSS-SpriteMaker
-provides:
-  File::CleanupTask:
-    file: lib/CSS/SpriteMaker.pm
-    version: 0.09
+name: CSS-Sprite
 requires:
   Config::Simple: 0
   File::Basename: 0
@@ -43,4 +38,4 @@ requires:
   perl: 5.006
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.09
+version: 0.01
