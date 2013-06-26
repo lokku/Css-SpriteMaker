@@ -1,5 +1,5 @@
 {
-   "abstract" : "Combine several images into a CSS sprite"
+   "abstract" : "Combine several images into a single CSS sprite",
    "author" : [
       "Savio Dimatteo <savio@lokku.com>"
    ],
@@ -55,7 +55,23 @@
    "provides" : {
       "CSS::SpriteMaker" : {
          "file" : "lib/CSS/SpriteMaker.pm",
-         "version" : "0.09"
+         "version" : "0.01"
+      },
+      "CSS::SpriteMaker::Layout" : {
+         "file" : "lib/CSS/SpriteMaker/Layout.pm",
+         "version" : "0.01"
+      },
+      "CSS::SpriteMaker::Layout::DirectoryBased" : {
+         "file" : "lib/CSS/SpriteMaker/Layout/DirectoryBased.pm",
+         "version" : "0.01"
+      },
+      "CSS::SpriteMaker::Layout::Packed" : {
+         "file" : "lib/CSS/SpriteMaker/Layout/Packed.pm",
+         "version" : "0.01"
+      },
+      "CSS::SpriteMaker::Layout::Utils::BinPacking" : {
+         "file" : "lib/CSS/SpriteMaker/Layout/Utils/BinPacking.pm",
+         "version" : 0
       }
    },
    "release_status" : "stable",
@@ -64,5 +80,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "0.09"
+   "version" : "0.01"
 }
