@@ -45,9 +45,6 @@ our $VERSION = '0.01';
 
 Once make() is called, the specified target_file is created.
 
-
-=head2 CONFIGURATION FORMAT
-
 =head1 METHODS
 
 =head2 new
