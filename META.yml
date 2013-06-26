@@ -18,12 +18,29 @@ build_requires:
   Test::Pod::Coverage: 0
 configure_requires:
   Module::Build: 0.38
-generated_by: 'Module::Build version 0.3601'
+dynamic_config: 1
+generated_by: 'Module::Build version 0.38, CPAN::Meta::Converter version 2.110440'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
-name: CSS-Sprite
+name: CSS-SpriteMaker
+provides:
+  CSS::SpriteMaker:
+    file: lib/CSS/SpriteMaker.pm
+    version: 0.01
+  CSS::SpriteMaker::Layout:
+    file: lib/CSS/SpriteMaker/Layout.pm
+    version: 0.01
+  CSS::SpriteMaker::Layout::DirectoryBased:
+    file: lib/CSS/SpriteMaker/Layout/DirectoryBased.pm
+    version: 0.01
+  CSS::SpriteMaker::Layout::Packed:
+    file: lib/CSS/SpriteMaker/Layout/Packed.pm
+    version: 0.01
+  CSS::SpriteMaker::Layout::Utils::BinPacking:
+    file: lib/CSS/SpriteMaker/Layout/Utils/BinPacking.pm
+    version: 0
 requires:
   Config::Simple: 0
   File::Basename: 0
