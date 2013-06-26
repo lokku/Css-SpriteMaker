@@ -8,8 +8,11 @@ use feature qw(say);
 use File::Find;
 use Image::Magick;
 
-use CSS::SpriteMaker::Layout::DirectoryBased;
-use CSS::SpriteMaker::Layout::Packed;
+use Module::Pluggable 
+    search_path => ['CSS::SpriteMaker::Layout'],
+    except => qr/CSS::SpriteMaker::Layout::Utils::.*/,
+    require => 1,
+    inner => 0;
 
 use POSIX qw(ceil);
 
@@ -34,6 +37,7 @@ our $VERSION = '0.01';
     my $SpriteMaker = CSS::SpriteMaker->new(
         source_dir => '/tmp/test/images',
         target_file => '/tmp/test/mysprite.png',
+        layout => 'Packed',         # optional
         format => 'png8',           # optional
         remove_source_padding => 1, # optional
         verbose => 1,               # optional
@@ -74,6 +78,7 @@ sub new {
     $opts{verbose}               //= 0;
     $opts{format}                //= 'png';
     $opts{same_size}             //= 0;
+    $opts{layout}                //= 'Packed';
     
     my $self = {
         source_dir => $opts{source_dir},
@@ -83,6 +88,7 @@ sub new {
         remove_source_padding => $opts{remove_source_padding},
         output_css_file => $opts{output_css_file},
         output_html_file => $opts{output_html_file},
+        layout => $opts{layout},
 
         # the maximum color value
         color_max => 2 ** Image::Magick->QuantumDepth - 1,
@@ -113,6 +119,7 @@ sub make {
 
     my $source_total = 0;
 
+
     # the filenames of the images
     $self->_verbose(" * gathering files and directories of source images");
     my $id = 0;
@@ -134,6 +141,7 @@ sub make {
 
     $self->_verbose(" * analysing source images");
 
+
     # collect properties of each input image
     IMAGE:
     for my $id (keys %source_info) {
@@ -149,16 +157,34 @@ sub make {
         };
     }
 
-    # devise the best layout
     $self->_verbose(" * creating layout");
-    my $Layout = CSS::SpriteMaker::Layout::DirectoryBased->new(\%source_info);
-    $Layout = CSS::SpriteMaker::Layout::Packed->new(\%source_info);
 
-    # my $rh_layout = $self->layout_items(\%source_info);
+
+    # load layout
+    my $Layout;
+
+    LOAD_LAYOUT_PLUGIN:
+    for my $plugin ($self->plugins()) {
+        my ($plugin_name) = reverse split "::", $plugin;
+        if ($plugin eq $self->{layout} || $plugin_name eq $self->{layout}) {
+            $self->_verbose(" * using layout $plugin");
+            $Layout = $plugin->new(\%source_info);
+            last LOAD_LAYOUT_PLUGIN;
+        }
+    }
+    if (!defined $Layout) {
+        die sprintf(
+            "The layout you've specified (%s) couldn't be found. Valid layouts are:\n%s",
+            $self->{layout},
+            join "\n", $self->plugins()
+        );
+    }
+
 
     # save image
     $self->_verbose(" * writing sprite image");
     my $err = $self->_write_sprite($Layout, \%source_info);
+
 
     # save stylesheet
     if (defined $self->{output_css_file}) {
