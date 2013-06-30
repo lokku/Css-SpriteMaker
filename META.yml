@@ -45,6 +45,7 @@ requires:
   File::Find: 0
   Getopt::Long: 0
   Image::Magick: 0
+  Module::Pluggable: 0
   perl: 5.006
 resources:
   license: http://dev.perl.org/licenses/
