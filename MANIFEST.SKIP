@@ -4,3 +4,4 @@
 ^blib
 ^MYMETA\.json$
 ^ignore.txt$
+^MANIFEST.bak$
