@@ -2,6 +2,7 @@ Revision history for CSS-SpriteMaker
 
 0.00    Thu 23 May 2013 22:02:09 BST
         * initial commit
+
 0.01    Wed Jun 26 19:18:08 BST 2013
         * first release!
         * make CSS image sprite
@@ -12,3 +13,7 @@ Revision history for CSS-SpriteMaker
         * format conversion
         * border removal
         * tests
+
+0.02    Sun Jun 30 14:40:08 BST 2013
+        * improved CSS class names generation
+        * improved POD
