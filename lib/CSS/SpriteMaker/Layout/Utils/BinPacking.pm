@@ -3,7 +3,6 @@ package CSS::SpriteMaker::Layout::Utils::BinPacking;
 use strict;
 use warnings;
 
-our $VERSION = 0.01
 
 =head1 NAME
 
@@ -16,6 +15,8 @@ Basically, a Perl port of packer.growing.js (https://npmjs.org/package/binpackin
 Version 0.01
 
 =cut
+
+our $VERSION = '0.01';
 
 =head1 SYNOPSIS
 
