@@ -35,38 +35,54 @@ our $VERSION = '0.01';
     use CSS::SpriteMaker;
 
     my $SpriteMaker = CSS::SpriteMaker->new(
-        source_dir => '/tmp/test/images',
-        target_file => '/tmp/test/mysprite.png',
-        layout => 'Packed',         # optional
-        format => 'png8',           # optional
-        remove_source_padding => 1, # optional
-        verbose => 1,               # optional
-        output_css_file => /path/to/file.css,   # optional
-        output_html_file => /path/to/file.html  # optional
+        verbose => 1, # optional
+        rc_filename_to_classname => sub { my $filename = shift; ... } # optional
     );
 
-    $SpriteMaker->make();
+    $SpriteMaker->make_sprite(
+        source_images  => ['/path/to/imagedir', '/images/img1.png', '/img2.png'];
+        target_file => '/tmp/test/mysprite.png',
+        layout_name => 'Packed',    # optional
+        remove_source_padding => 1, # optional
+        format => 'png8',           # optional
+    );
 
-Once make() is called, the specified target_file is created.
+    $SpriteMaker->print_css();
 
-=head1 METHODS
+    $SpriteMaker->print_html();
+
+    OR
+
+    my $SpriteMaker = CSS::SpriteMaker->new();
+
+    $SpriteMaker->make_sprite(
+       source_dir => '/tmp/test/images',
+       target_file => '/tmp/test/mysprite.png',
+    );
+
+    $SpriteMaker->print_css();
+
+    $SpriteMaker->print_html();
+
+=head1 PUBLIC METHODS
 
 =head2 new
 
 Create and configure a new CSS::SpriteMaker object.
 
-The object must be initialised as follows:
+The object can be initialised as follows:
     
     my $SpriteMaker = CSS::SpriteMaker->new({
-        source_dir => '/tmp/test/images',
-        target_file => '/tmp/test/mysprite.png'
-        format => 'png',
-        remove_source_padding => 1,
-        same_size => 0,
-        verbose => 1,
-        output_css_file => /path/to/file.css,
-        output_html_file => /path/to/file.html,
+        source_dir => '/tmp/test/images',       # optional
+        target_file => '/tmp/test/mysprite.png' # optional
+        remove_source_padding => 1, # optional
+        verbose => 1,               # optional
     });
+    
+    $opts{remove_source_padding} //= 1;
+    $opts{verbose}               //= 0;
+    $opts{format}                //= 'png';
+    
 
 =cut
 sub new {
@@ -77,10 +93,10 @@ sub new {
     $opts{remove_source_padding} //= 1;
     $opts{verbose}               //= 0;
     $opts{format}                //= 'png';
-    $opts{same_size}             //= 0;
-    $opts{layout}                //= 'Packed';
+    $opts{layout_name}           //= 'Packed';
     
     my $self = {
+        source_images => $opts{source_images},
         source_dir => $opts{source_dir},
         target_file => $opts{target_file},
         is_verbose => $opts{verbose},
@@ -88,7 +104,8 @@ sub new {
         remove_source_padding => $opts{remove_source_padding},
         output_css_file => $opts{output_css_file},
         output_html_file => $opts{output_html_file},
-        layout => $opts{layout},
+        layout_name => $opts{layout_name},
+        rc_filename_to_classname => $opts{rc_filename_to_classname},
 
         # the maximum color value
         color_max => 2 ** Image::Magick->QuantumDepth - 1,
@@ -97,280 +114,41 @@ sub new {
     return bless $self, $class;
 }
 
-=head2 make
+=head2 make_sprite
 
-Creates the CSS sprite according to the current configuration.
+Creates the sprite file out of the specifed image files or directories, and
+according to the given layout name.
 
-Returns true if the image was successfully created and false otherwise.
+my $is_error = $SpriteMaker->make_sprite(
+    source_images => ['some/file.png', path/to/some_directory],
+    target_file => 'sample_sprite.png',
+    layout_name => 'Packed',
 
-=cut
+    # all imagemagick supported formats
+    format => 'png8', # optional, default is png
+);
 
-sub make {
-    my $self = shift;
-
-    $self->_verbose("Target file: " . $self->{target_file});
-    $self->_verbose("Checking " . $self->{source_dir});
-
-    # collect information about each source image
-    # - width: width of image in pixels
-    # - height: height of image in pixels
-    # - name: the file name
-    my %source_info;
-
-    my $source_total = 0;
-
-
-    # the filenames of the images
-    $self->_verbose(" * gathering files and directories of source images");
-    my $id = 0;
-    find(sub {
-        my $filename = $_;
-        my $fullpath = $File::Find::name;
-        my $parentdir = $File::Find::dir;
-    
-        return if $filename eq '.';
-
-        if (-f $filename) {
-            $source_info{$id}{name} = $filename;
-            $source_info{$id}{pathname} = $fullpath;
-            $source_info{$id}{parentdir} = $parentdir;
-            $id++;
-        }
-
-    }, $self->{source_dir});
-
-    $self->_verbose(" * analysing source images");
-
-
-    # collect properties of each input image
-    IMAGE:
-    for my $id (keys %source_info) {
-        my %properties = %{$self->_get_image_properties(
-            $source_info{$id}{pathname}
-        )};
-
-        # skip invalid images
-        next IMAGE if !%properties;
-
-        for my $property (keys %properties) {
-            $source_info{$id}{$property} = $properties{$property};
-        };
-    }
-
-    $self->_verbose(" * creating layout");
-
-
-    # load layout
-    my $Layout;
-
-    LOAD_LAYOUT_PLUGIN:
-    for my $plugin ($self->plugins()) {
-        my ($plugin_name) = reverse split "::", $plugin;
-        if ($plugin eq $self->{layout} || $plugin_name eq $self->{layout}) {
-            $self->_verbose(" * using layout $plugin");
-            $Layout = $plugin->new(\%source_info);
-            last LOAD_LAYOUT_PLUGIN;
-        }
-    }
-    if (!defined $Layout) {
-        die sprintf(
-            "The layout you've specified (%s) couldn't be found. Valid layouts are:\n%s",
-            $self->{layout},
-            join "\n", $self->plugins()
-        );
-    }
-
-
-    # save image
-    $self->_verbose(" * writing sprite image");
-    my $err = $self->_write_sprite($Layout, \%source_info);
-
-
-    # save stylesheet
-    if (defined $self->{output_css_file}) {
-        $err += $self->_write_stylesheet($Layout, \%source_info);
-    }
-    if (defined $self->{output_html_file}) {
-        $err += $self->_write_html($Layout, \%source_info);
-    }
-
-    return !$err;
-}
-
-=head2 _get_stylesheet_string
-
-Returns the stylesheet in a string.
+returns true if an error occurred during the procedure.
 
 =cut
 
-sub _get_stylesheet_string {
-    my $self            = shift;
-    my $rh_layout       = shift;
-    my $rh_sources_info = shift;
+sub make_sprite {
+    my $self    = shift;
+    my %options = @_;
 
-    my @stylesheet;
-    
-    # a list of classes
-    my @classes =
-        map { $self->_generate_css_class_name($_) }
-        map { my $name = $_; $name =~ s/@//g; $name }
-        map { $rh_sources_info->{$_}{name} }
-        keys %$rh_sources_info;
-
-    # write header
-    # header associates the sprite image to each class
-    push @stylesheet, sprintf("%s { background-image: url('%s'); background-repeat: no-repeat; }",
-        join(",", @classes),
-        $self->{target_file}
+    my $rh_sources_info = $self->_ensure_sources_info(%options);
+    my $Layout          = $self->_ensure_layout(%options, 
+        rh_sources_info => $rh_sources_info
     );
 
-    # now take care of individual sections
-    for my $id (keys %$rh_sources_info) {
+    my $target_file     = $options{target_file} // $self->{target_file};
+    my $output_format   = $options{format} // $self->{format};
 
-        if (defined $rh_layout->{items}{$id}) {
-            my $rh_source_info = $rh_sources_info->{$id};
-            my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
-
-            push @stylesheet, sprintf("%s { background-position: %spx %spx; width: %spx; height: %spx; }",
-                $css_class,
-                -1 * $rh_layout->{items}{$id}{x},
-                -1 * $rh_layout->{items}{$id}{y},
-                $rh_source_info->{width},
-                $rh_source_info->{height},
-            );
-        }
+    if (!$target_file) {
+        die "the ``target_file'' parameter is required for this subroutine or you must instantiate Css::SpriteMaker with the target_file parameter";
     }
 
-    return join "\n", @stylesheet;
-}
-
-=head2 _write_stylesheet
-
-Creates the stylesheet for the sprite that was just produced. Follows the
-format specified on creation.
-
-=cut
-
-sub _write_stylesheet {
-    my $self            = shift;
-    my $rh_layout       = shift;
-    my $rh_sources_info = shift;
-
-    $self->_verbose("  * writing " . $self->{output_css_file});
-
-    open my ($fh), '>', $self->{output_css_file};
-
-    my $stylesheet = $self->_get_stylesheet_string($rh_layout, $rh_sources_info);
-
-    print $fh $stylesheet;
-
-    close $fh;
-
-    return 0;
-}
-
-=head2 _write_html
-
-Creates a sample html webpage for the sprite produced.
-
-=cut
-sub _write_html {
-    my $self = shift;
-    my $rh_layout = shift;
-    my $rh_sources_info = shift;
-    
-    $self->_verbose("  * writing " . $self->{output_html_file});
-
-    my $stylesheet = $self->_get_stylesheet_string($rh_layout, $rh_sources_info);
-
-    open my ($fh), '>', $self->{output_html_file};
-
-    print $fh '<html><head><style type="text/css">';
-    print $fh $stylesheet;
-    print $fh <<EOCSS;
-    .color {
-        width: 10px;
-        height: 10px;
-        margin: 1px;
-        float: left;
-        border: 1px solid black;
-    }
-    .item-container {
-        clear: both;
-        background-color: #BCE;
-        width: 340px;
-        margin: 10px;
-        -webkit-border-radius: 10px;
-        -moz-border-radius: 10px;
-        -o-border-radius: 10px;
-        border-radius: 10px;
-    }
-EOCSS
-    print $fh '</style></head><body>';
-
-    # html
-    for my $id (keys %$rh_sources_info) {
-        my $rh_source_info = $rh_sources_info->{$id};
-        my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
-
-        $css_class =~ s/[.]//;
-
-        print $fh '<div class="item-container">';
-        print $fh "  <div class=\"item $css_class\"></div>";
-        print $fh "  <div class=\"item_description\">";
-        for my $key (keys %$rh_source_info) {
-            next if $key eq "colors";
-            print $fh "<b>" . $key . "</b>: " . ($rh_source_info->{$key} // 'none') . "<br />";
-        }
-        print $fh '<h3>Colors</h3>';
-            print $fh "<b>total</b>: " . $rh_source_info->{colors}{total} . '<br />';
-            for my $colors (keys %{$rh_source_info->{colors}{map}}) {
-                my ($r, $g, $b, $a) = split /,/, $colors;
-                my $rrgb = $r * 255 / $self->{color_max};
-                my $grgb = $g * 255 / $self->{color_max};
-                my $brgb = $b * 255 / $self->{color_max};
-                my $argb = 255 - ($a * 255 / $self->{color_max});
-                print $fh '<div class="color" style="background-color: ' . "rgba($rrgb, $grgb, $brgb, $argb);\"></div>";
-            }
-        print $fh "  </div>";
-        print $fh '</div>';
-    }
-
-    print $fh "</body></html>";
-
-    return 0;
-}
-
-=head2 _generate_css_class_name
-
-This method generates the name of the CSS class for a certain image file. Takes
-the image filename as input and produces a css class name (including the .)
-
-=cut
-
-sub _generate_css_class_name {
-    my $self = shift;
-    my $filename = shift;
-
-    # prepare
-    my $css_class = $filename;
-
-    # remove the extension if any
-    $css_class =~ s/[.].*\Z//i;
-
-    return ".$css_class";
-}
-
-=head2 _write_sprite
-
-Actually creates the sprite file according to the given layout.
-
-=cut
-
-sub _write_sprite {
-    my $self = shift;
-    my $Layout = shift;
-    my $rh_sources_info = shift;
+    $self->_verbose(" * writing sprite image");
 
     $self->_verbose(sprintf("Target image size: %s, %s",
         $Layout->width(),
@@ -439,16 +217,597 @@ sub _write_sprite {
     }
 
     # write target image
-    my $err = $Target->Write("$self->{format}:".$self->{target_file});
+    my $err = $Target->Write("$output_format:".$target_file);
     if ($err) {
-        warn "unable to obtain $self->{target_file} for writing it as $self->{format}. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats. Error: $err";
+        warn "unable to obtain $target_file for writing it as $output_format. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats. Error: $err";
 
-        $self->_verbose("Wrote $self->{target_file}");
+        $self->_verbose("Wrote $target_file");
 
         return 1;
     }
 
+    # cache the layout and the rh_info structure so that it hasn't to be passed
+    # as a parameter next times.
+    $self->{_cache_layout} = $Layout;
+
+    # cache the target image file, as making the stylesheet can't be done
+    # without this information.
+    $self->{_cache_target_image_file} = $target_file;
+
     return 0;
+}
+
+=head2 print_css
+
+Creates and prints the css stylesheet for the sprite that was previously
+produced.
+
+$SpriteMaker->print_css(
+   filehandle => $fh, 
+);
+
+OR
+
+$SpriteMaker->print_css(
+   filename => 'relative/path/to/style.css',
+);
+
+NOTE: make_sprite() must be called before this method is called.
+
+=cut
+
+sub print_css {
+    my $self            = shift;
+    my %options         = @_;
+    
+    my $rh_sources_info = $self->_ensure_sources_info(%options);
+    my $Layout          = $self->_ensure_layout(%options,
+        rh_sources_info => $rh_sources_info    
+    );
+
+    my $fh = $self->_ensure_filehandle_write(%options);
+
+    $self->_verbose("  * writing css file");
+
+    my $stylesheet = $self->_get_stylesheet_string();
+
+    print $fh $stylesheet;
+    close $fh;
+
+    return 0;
+}
+
+=head2 print_html
+
+Creates and prints an html sample page containing informations about each sprite produced.
+
+$SpriteMaker->print_html(
+   filehandle => $fh, 
+);
+
+OR
+
+$SpriteMaker->print_html(
+   filename => 'relative/path/to/index.html',
+);
+
+NOTE: make_sprite() must be called before this method is called.
+
+=cut
+sub print_html {
+    my $self    = shift;
+    my %options = @_;
+    
+    my $rh_sources_info = $self->_ensure_sources_info(%options);
+    my $Layout          = $self->_ensure_layout(%options,
+        rh_sources_info => $rh_sources_info
+    );
+    my $fh              = $self->_ensure_filehandle_write(%options);
+    
+    $self->_verbose("  * writing html sample page");
+
+    my $stylesheet = $self->_get_stylesheet_string($Layout, $rh_sources_info);
+
+    print $fh '<html><head><style type="text/css">';
+    print $fh $stylesheet;
+    print $fh <<EOCSS;
+    .color {
+        width: 10px;
+        height: 10px;
+        margin: 1px;
+        float: left;
+        border: 1px solid black;
+    }
+    .item-container {
+        clear: both;
+        background-color: #BCE;
+        width: 340px;
+        margin: 10px;
+        -webkit-border-radius: 10px;
+        -moz-border-radius: 10px;
+        -o-border-radius: 10px;
+        border-radius: 10px;
+    }
+EOCSS
+    print $fh '</style></head><body>';
+
+    # html
+    for my $id (keys %$rh_sources_info) {
+        my $rh_source_info = $rh_sources_info->{$id};
+        my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
+
+        $css_class =~ s/[.]//;
+
+        print $fh '<div class="item-container">';
+        print $fh "  <div class=\"item $css_class\"></div>";
+        print $fh "  <div class=\"item_description\">";
+        for my $key (keys %$rh_source_info) {
+            next if $key eq "colors";
+            print $fh "<b>" . $key . "</b>: " . ($rh_source_info->{$key} // 'none') . "<br />";
+        }
+        print $fh '<h3>Colors</h3>';
+            print $fh "<b>total</b>: " . $rh_source_info->{colors}{total} . '<br />';
+            for my $colors (keys %{$rh_source_info->{colors}{map}}) {
+                my ($r, $g, $b, $a) = split /,/, $colors;
+                my $rrgb = $r * 255 / $self->{color_max};
+                my $grgb = $g * 255 / $self->{color_max};
+                my $brgb = $b * 255 / $self->{color_max};
+                my $argb = 255 - ($a * 255 / $self->{color_max});
+                print $fh '<div class="color" style="background-color: ' . "rgba($rrgb, $grgb, $brgb, $argb);\"></div>";
+            }
+        print $fh "  </div>";
+        print $fh '</div>';
+    }
+
+    print $fh "</body></html>";
+
+    return 0;
+}
+
+=head2 get_css_info_structure
+
+Returns an arrayref of hashrefs like:
+
+[
+    {
+        full_path => 'relative/path/to/file.png',
+        css_class => 'file',
+        width     => 16,  # pixels
+        height    => 16,
+        x         => 173, # offset within the layout
+        y         => 234,
+    },
+    ...
+]
+
+This structure can be used to build your own html or css stylesheet for example.
+
+NOTE: the x y offsets within the layout, will be always positive numbers.
+
+=cut
+
+sub get_css_info_structure {
+    my $self            = shift;
+    my %options         = @_;
+
+    my $rh_sources_info = $self->_ensure_sources_info(%options);
+    my $Layout          = $self->_ensure_layout(%options,
+        rh_sources_info => $rh_sources_info
+    );
+
+    my $rh_id_to_class  = $self->_generate_css_class_names($rh_sources_info);
+
+    my @css_info;
+
+    for my $id (keys %$rh_sources_info) {
+        my $rh_source_info = $rh_sources_info->{$id};
+        my $css_class = $rh_id_to_class->{$id};
+
+        my ($x, $y) = $Layout->get_item_coord($id);
+
+        push @css_info, {
+            full_path => $rh_source_info->{pathname},
+            x => $x,
+            y => $y,
+            css_class => $css_class,
+            width => $rh_source_info->{width},
+            height => $rh_source_info->{height},
+        };
+    }
+
+    return \@css_info;
+}
+
+=head1 PRIVATE METHODS
+
+=head2 _generate_css_class_names
+
+Returns a mapping id -> class_name out of the current information structure.
+
+It guarantees unique class_name for each id.
+
+=cut
+
+sub _generate_css_class_names {
+    my $self = shift;
+    my $rh_source_info = shift;;
+
+    my %existing_classnames_lookup;
+    my %id_to_class_mapping;
+
+    for my $id (keys %$rh_source_info) {
+
+        my $css_class = $self->_generate_css_class_name(
+            $rh_source_info->{$id}{name}
+        );
+        
+        # keep modifying the css_class name until it doesn't exist in the hash
+        my $i = 0;
+        while (exists $existing_classnames_lookup{$css_class}) {
+            # ... we want to add an incremental suffix like "-2"
+            if (!$i) {
+                # the first time, we want to add the prefix only, but leave the class name intact
+                if ($css_class =~ m/-\Z/) {
+                    # class already ends with a dash
+                    $css_class .= '1';
+                }
+                else {
+                    $css_class .= '-1';
+                }
+            }
+            elsif ($css_class =~ m/-(\d+)\Z/) { # that's our dash added before!
+                my $current_number = $1;
+                $current_number++;
+                $css_class =~ s/-\d+\Z/-$current_number/;
+            }
+            $i++;
+        }
+
+        $existing_classnames_lookup{$css_class} = 1;
+        $id_to_class_mapping{$id} = $css_class;
+    }
+
+    return \%id_to_class_mapping;
+}
+
+
+=head2 _image_locations_to_source_info
+
+Identify informations from the location of each input image.
+
+=cut
+
+sub _image_locations_to_source_info {
+    my $self         = shift;
+    my $ra_locations = shift;
+
+    my %source_info;
+    
+    # collect properties of each input image
+    IMAGE:
+    my $id = 0;
+    for my $rh_location (@$ra_locations) {
+
+        my %properties = %{$self->_get_image_properties(
+            $rh_location->{pathname}
+        )};
+
+        # skip invalid images
+        next IMAGE if !%properties;
+
+        for my $key (keys %$rh_location) {
+            $source_info{$id}{$key} = $rh_location->{$key};
+        }
+        for my $key (keys %properties) {
+            $source_info{$id}{$key} = $properties{$key};
+        }
+
+        $id++;
+    }
+
+    return \%source_info;
+}
+
+=head2 _locate_image_files
+
+Finds the location of image files within the given directory. Returns an
+arrayref of hashrefs containing information about the names and pathnames of
+each image file.
+
+The returned arrayref looks like:
+
+[   # pathnames of the first image to follow
+    {
+        name => 'image.png',
+        pathname => '/complete/path/to/image.png',
+        parentdir => '/complete/path/to',
+    },
+    ...
+]
+
+Dies if the given directory is empty or doesn't exist.
+
+=cut
+
+sub _locate_image_files {
+    my $self             = shift;
+    my $source_directory = shift;
+
+    if (!defined $source_directory) {
+        die "you have called _locate_image_files but \$source_directory was undefined";
+    }
+
+    $self->_verbose(" * gathering files and directories of source images");
+
+    my @locations;
+    find(sub {
+        my $filename = $_;
+        my $fullpath = $File::Find::name;
+        my $parentdir = $File::Find::dir;
+    
+        return if $filename eq '.';
+
+        if (-f $filename) {
+            push @locations, {
+                # only the name of the file 
+                name     => $filename,
+
+                # the full relative pathname
+                pathname => $fullpath,
+
+                # the full relative path to the parent directory
+                parentdir => $parentdir
+            };
+        }
+
+    }, $source_directory);
+
+    return \@locations;
+}
+
+=head2 _get_stylesheet_string
+
+Returns the stylesheet in a string.
+
+=cut
+
+sub _get_stylesheet_string {
+    my $self = shift;
+    my $target_image_filename = shift // $self->{_cache_target_image_file};
+
+    my $rah_cssinfo = $self->get_css_info_structure(); 
+
+    my @classes = map { "." . $_->{css_class} } @$rah_cssinfo;
+
+    my @stylesheet;
+
+    # write header
+    # header associates the sprite image to each class
+    push @stylesheet, sprintf(
+        "%s { background-image: url('%s'); background-repeat: no-repeat; }",
+        join(",", @classes),
+        $target_image_filename
+    );
+
+    for my $rh_info (@$rah_cssinfo) {
+        push @stylesheet, sprintf(
+            ".%s { background-position: %spx %spx; width: %spx; height: %spx; }",
+            $rh_info->{css_class}, 
+            -1 * $rh_info->{x},
+            -1 * $rh_info->{y},
+            $rh_info->{width},
+            $rh_info->{height},
+        );
+    }
+
+    return join "\n", @stylesheet;
+}
+
+
+=head2 _generate_css_class_name
+
+This method generates the name of the CSS class for a certain image file. Takes
+the image filename as input and produces a css class name (including the .)
+
+=cut
+
+sub _generate_css_class_name {
+    my $self     = shift;
+    my $filename = shift;
+
+    my $rc_filename_to_classname = $self->{rc_filename_to_classname};
+
+    if (defined $rc_filename_to_classname) {
+        my $classname = $rc_filename_to_classname->($filename);
+        if ($classname !~ m/^[.]/) {
+            warn sprintf('your custom sub %s has generated a css class (%s) that doesn\'t start with a dot. ',
+                $rc_filename_to_classname,
+                $classname,
+            );
+        }
+        return $classname;
+    }
+
+    # prepare
+    my $css_class = $filename;
+
+    # remove the extension if any
+    $css_class =~ s/[.].*\Z//i;
+
+    # remove @
+    $css_class =~ s/[@]//i;
+
+    return $css_class;
+}
+
+
+=head2 _ensure_filehandle_write
+
+Inspects the input %options hash and returns a filehandle according to the
+parameters passed in there.
+
+The filehandle is where something (css stylesheet for example) is going to be
+printed.
+
+=cut
+
+sub _ensure_filehandle_write {
+    my $self = shift;
+    my %options = @_;
+
+    return $options{filehandle} if defined $options{filehandle};
+
+    if (defined $options{filename}) {
+        open my ($fh), '>', $options{filename};
+        return $fh;
+    }
+
+    return \*STDOUT;
+}
+
+=head2 _ensure_sources_info
+
+Makes sure the user of this module has provided a valid input parameter for
+sources_info and return the sources_info structure accordingly. Dies in case
+something goes wrong with the user input.
+
+Parameters that allow us to obtain a $rh_sources_info structure are: 
+
+- source_images: an arrayref of files or directories, directories will be
+  visited recursively and any image file in it becomes the input.
+
+If none of the above parameters have been found in input options, the cache is
+checked before giving up - i.e., the user has previously provided the layout
+parameter, and was able to generate a sprite. 
+
+=cut
+
+sub _ensure_sources_info {
+    my $self = shift;
+    my %options = @_;
+
+    my $rh_source_info;
+
+    return $options{source_info} if exists $options{source_info};
+
+    my @source_images;
+
+    if (exists $options{source_dir} && defined $options{source_dir}) {
+        push @source_images, $options{source_dir};
+    }
+
+    if (exists $options{source_images} && defined $options{source_images}) {
+        die 'source_images parameter must be an ARRAY REF' if ref $options{source_images} ne 'ARRAY';
+        push @source_images, @{$options{source_images}};
+    }
+
+    if (@source_images) {
+        # locate each file within each directory and then identify all...
+        my @locations;
+        for my $file_or_dir (@source_images) {
+            my $ra_locations = $self->_locate_image_files($file_or_dir);
+            push @locations, @$ra_locations;
+        }
+
+        $rh_source_info = $self->_image_locations_to_source_info(
+            \@locations
+        );
+    }
+    
+    if (!$rh_source_info) {
+        if (exists $self->{_cache_rh_source_info}
+            && defined $self->{_cache_rh_source_info}) {
+
+            $rh_source_info = $self->{_cache_rh_source_info};
+        }
+        else {
+            die "Unable to create the source_info_structure!";
+        }
+    }
+    else {
+        # cache sources info
+        $self->{_cache_rh_source_info} = $rh_source_info;
+    }
+
+    return $rh_source_info;
+}
+
+
+
+=head2 _ensure_layout
+
+Makes sure the user of this module has provided valid layout options and
+returns a $Layout object accordingly. Dies in case something goes wrong with
+the user input.
+
+Parameters that allow us to obtain a $Layout object are:
+
+- layout: a CSS::SpriteMaker::Layout object already;
+- layout_name: the name of a CSS::SpriteMaker::Layout object.
+
+If none of the above parameters have been found in input options, the cache is
+checked before giving up - i.e., the user has previously provided the layout
+parameter... 
+
+=cut 
+
+sub _ensure_layout {
+    my $self = shift;
+    my %options = @_;
+
+    die 'rh_sources_info parameter is required' if !exists $options{rh_sources_info};
+
+    # Try to understand what layout is asked
+    my $Layout;
+    if (exists $options{layout}) {
+        $Layout = $options{layout};
+    }
+
+    if (defined $Layout) {
+        if (exists $options{layout_name} && defined $options{layout_name}) {
+            warn 'the parameter layout_name was ignored as the layout parameter was specified. These two parameters are mutually exclusive.';
+        }
+    }
+    else {
+        #
+        # Load layout from plugins, and layout items
+        #
+        $self->_verbose(" * creating layout");
+
+        my $layout_name = $options{layout_name} // $self->{layout_name};
+
+        LOAD_LAYOUT_PLUGIN:
+        for my $plugin ($self->plugins()) {
+            my ($plugin_name) = reverse split "::", $plugin;
+            if ($plugin eq $layout_name || $plugin_name eq $layout_name) {
+                $self->_verbose(" * using layout $plugin");
+                $Layout = $plugin->new($options{rh_sources_info});
+                last LOAD_LAYOUT_PLUGIN;
+            }
+        }
+
+        if (!defined $Layout) {
+            die sprintf(
+                "The layout you've specified (%s) couldn't be found. Valid layouts are:\n%s",
+                $layout_name,
+                join "\n", $self->plugins()
+            );
+        }
+    }
+
+    if (!defined $Layout) {
+        # try checking in the cache before giving up...
+        if (exists $self->{_cache_layout} 
+            && defined $self->{_cache_layout}) {
+ 
+            $Layout = $self->{_cache_layout};
+        }
+        else {
+            die "Unable to find a layout, did you forget to pass the ``layout'' or ``layout_name'' parameter?";
+        }
+    }
+
+    return $Layout;
 }
 
 =head2 _get_image_properties
@@ -608,7 +967,7 @@ sub _verbose {
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2012 Savio Dimatteo.
+Copyright 2013 Savio Dimatteo.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published

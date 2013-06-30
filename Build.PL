@@ -4,7 +4,7 @@ use warnings;
 use Module::Build;
 
 my $builder = Module::Build->new(
-    module_name         => 'CSS::Sprite',
+    module_name         => 'CSS::SpriteMaker',
     license             => 'perl',
     dist_author         => q{Savio Dimatteo <savio@lokku.com>},
     dist_version_from   => 'lib/CSS/SpriteMaker.pm',
@@ -28,16 +28,10 @@ my $builder = Module::Build->new(
     },
     requires => {
         'perl'           => 5.006,
-        'File::Path'     => 0,
-        'File::Basename' => 0,
-        'File::Spec'     => 0,
         'File::Find'     => 0,
-        'File::Copy'     => 0,
-        'IPC::Run3'      => 0,
-        'Sort::Key'      => 0,
-        'File::Which'    => 0,
-        'Config::Simple' => 0,
         'Getopt::Long'   => 0,
+        'Image::Magick'  => 0,
+        'Module::Pluggable' => 0,
 
 
     },

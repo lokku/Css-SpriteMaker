@@ -11,11 +11,23 @@ WriteMakefile
                  ],
   'VERSION_FROM' => 'lib/CSS/SpriteMaker.pm',
   'PREREQ_PM' => {
-                   'Image::Magick' => 6.6.0,
-                   'Module::Pluggable' => 0,
+                   'Config::Simple' => 0,
+                   'File::Spec' => 0,
+                   'File::Touch' => 0,
+                   'Test::Pod' => 0,
                    'File::Find' => 0,
+                   'File::Path' => 0,
                    'Getopt::Long' => 0,
+                   'File::Find::Rule' => 0,
+                   'Test::Pod::Coverage' => 0,
+                   'Test::File' => '1.33',
+                   'Image::Magick' => 0,
+                   'Test::More' => 0,
+                   'File::Temp' => 0,
+                   'File::Basename' => 0,
                    'Test::CheckManifest' => 0,
+                   'Module::Pluggable' => 0,
+                   'Cwd' => 0
                  }
 )
 ;
