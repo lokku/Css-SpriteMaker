@@ -23,11 +23,11 @@ CSS::SpriteMaker - Combine several images into a single CSS sprite
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 
 =head1 SYNOPSIS
@@ -51,7 +51,7 @@ our $VERSION = '0.01';
 
     $SpriteMaker->print_html();
 
-    OR
+OR
 
     my $SpriteMaker = CSS::SpriteMaker->new();
 
@@ -82,15 +82,28 @@ Create and configure a new CSS::SpriteMaker object.
 The object can be initialised as follows:
     
     my $SpriteMaker = CSS::SpriteMaker->new({
+        rc_filename_to_classname => sub { my $filename = shift; ... },
         source_dir => '/tmp/test/images',       # optional
         target_file => '/tmp/test/mysprite.png' # optional
         remove_source_padding => 1, # optional
         verbose => 1,               # optional
     });
     
-    $opts{remove_source_padding} //= 1;
-    $opts{verbose}               //= 0;
-    $opts{format}                //= 'png';
+Default values are set to:
+
+=over4
+
+=item remove_source_padding : false,
+
+=item verbose : false,
+
+=item format  : png
+
+=back
+
+The parameter rc_filename_to_classname is a code reference to a function that allow to customize the way class names are generated. This function should take one parameter as input and return a class name
+
+
     
 
 =cut
@@ -99,7 +112,7 @@ sub new {
     my %opts   = @_;
 
     # defaults
-    $opts{remove_source_padding} //= 1;
+    $opts{remove_source_padding} //= 0;
     $opts{verbose}               //= 0;
     $opts{format}                //= 'png';
     $opts{layout_name}           //= 'Packed';
@@ -141,11 +154,15 @@ returns true if an error occurred during the procedure.
 
 Available layouts are:
 
-- Packed: try to pack together the images as much as possible to reduce the
+=over4
+
+=item * Packed: try to pack together the images as much as possible to reduce the
   image size.
 
-- DirectoryBased: put images under the same directory on the same horizontal
+=item * DirectoryBased: put images under the same directory on the same horizontal
   line. Within each line, order alphabetically.
+
+=back
 
 =cut
 
@@ -259,15 +276,15 @@ sub make_sprite {
 Creates and prints the css stylesheet for the sprite that was previously
 produced.
 
-$SpriteMaker->print_css(
-   filehandle => $fh, 
-);
+    $SpriteMaker->print_css(
+       filehandle => $fh, 
+    );
 
 OR
 
-$SpriteMaker->print_css(
-   filename => 'relative/path/to/style.css',
-);
+    $SpriteMaker->print_css(
+       filename => 'relative/path/to/style.css',
+    );
 
 NOTE: make_sprite() must be called before this method is called.
 
@@ -298,15 +315,15 @@ sub print_css {
 
 Creates and prints an html sample page containing informations about each sprite produced.
 
-$SpriteMaker->print_html(
-   filehandle => $fh, 
-);
+    $SpriteMaker->print_html(
+       filehandle => $fh, 
+    );
 
 OR
 
-$SpriteMaker->print_html(
-   filename => 'relative/path/to/index.html',
-);
+    $SpriteMaker->print_html(
+       filename => 'relative/path/to/index.html',
+    );
 
 NOTE: make_sprite() must be called before this method is called.
 
@@ -385,19 +402,20 @@ EOCSS
 
 Returns an arrayref of hashrefs like:
 
-[
-    {
-        full_path => 'relative/path/to/file.png',
-        css_class => 'file',
-        width     => 16,  # pixels
-        height    => 16,
-        x         => 173, # offset within the layout
-        y         => 234,
-    },
-    ...
-]
+    [
+        {
+            full_path => 'relative/path/to/file.png',
+            css_class => 'file',
+            width     => 16,  # pixels
+            height    => 16,
+            x         => 173, # offset within the layout
+            y         => 234,
+        },
+        ...more
+    ]
 
-This structure can be used to build your own html or css stylesheet for example.
+This structure can be used to build your own html or css stylesheet for
+example.
 
 NOTE: the x y offsets within the layout, will be always positive numbers.
 
@@ -624,7 +642,8 @@ sub _get_stylesheet_string {
 =head2 _generate_css_class_name
 
 This method generates the name of the CSS class for a certain image file. Takes
-the image filename as input and produces a css class name (including the .)
+the image filename as input and produces a css class name (excluding the
+prepended ".").
 
 =cut
 
@@ -636,23 +655,35 @@ sub _generate_css_class_name {
 
     if (defined $rc_filename_to_classname) {
         my $classname = $rc_filename_to_classname->($filename);
-        if ($classname !~ m/^[.]/) {
-            warn sprintf('your custom sub %s has generated a css class (%s) that doesn\'t start with a dot. ',
-                $rc_filename_to_classname,
+        if (!$classname) {
+            warn "custom sub to generate class names out of file names returned empty class for file name $filename";
+        }
+        if ($classname =~ m/^[.]/) {
+            warn sprintf('your custom sub should not include \'.\' at the beginning of the class name. (%s was generated from %s)',
                 $classname,
+                $filename
             );
         }
         return $classname;
     }
 
-    # prepare
-    my $css_class = $filename;
+    # prepare (lowercase)
+    my $css_class = lc($filename);
 
-    # remove the extension if any
-    $css_class =~ s/[.].*\Z//i;
+    # remove image extensions if any
+    $css_class =~ s/[.](tif|tiff|gif|jpeg|jpg|jif|jfif|jp2|jpx|j2k|j2c|fpx|pcd|png|pdf)\Z//;
 
-    # remove @
-    $css_class =~ s/[@]//i;
+    # remove @ []
+    $css_class =~ s/[@\]\[]//g;
+
+    # turn certain characters into dashes
+    $css_class =~ s/[\s_.]/-/g;
+
+    # remove dashes if they appear at the end
+    $css_class =~ s/-\Z//g;
+
+    # remove initial dashes if any
+    $css_class =~ s/\A-+//g;
 
     return $css_class;
 }
