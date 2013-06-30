@@ -15,7 +15,7 @@ use_ok('CSS::SpriteMaker');
     $SpriteMaker->make_sprite(
         source_images => ['sample_icons/bubble.png'],
         target_file => 'sample_sprite.png',
-    );
+    ) || unlink 'sample_sprite.png';
 
     my $rh_structure = $SpriteMaker->get_css_info_structure();
     is_deeply($rh_structure, [{

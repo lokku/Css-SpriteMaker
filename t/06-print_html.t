@@ -14,7 +14,8 @@ use_ok('CSS::SpriteMaker');
         source_dir => 'sample_icons',
         target_file => 'sample_sprite.png',
     );
-    is ($err, 0, 'sprite was successfully created');
+    is ($err, 0, 'sprite was successfully created') 
+        && unlink 'sample_sprite.png';
 
     my $out_css;
     open my($fh), '>', \$out_css
