@@ -64,6 +64,15 @@ our $VERSION = '0.01';
 
     $SpriteMaker->print_html();
 
+=head1 DESCRIPTION
+
+A CSS Sprite is an image obtained by arranging many smaller images on a 2D
+canvas, according to a certain layout.
+
+Transferring one larger image is generally faster than transferring multiple
+images separately as it greatly reduces the number of HTTP requests (and
+overhead) necessary to render the original images on the browser.
+
 =head1 PUBLIC METHODS
 
 =head2 new
@@ -129,6 +138,14 @@ my $is_error = $SpriteMaker->make_sprite(
 );
 
 returns true if an error occurred during the procedure.
+
+Available layouts are:
+
+- Packed: try to pack together the images as much as possible to reduce the
+  image size.
+
+- DirectoryBased: put images under the same directory on the same horizontal
+  line. Within each line, order alphabetically.
 
 =cut
 
