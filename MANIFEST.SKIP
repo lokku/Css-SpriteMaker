@@ -1,4 +1,5 @@
 ^MYMETA.yml$
 ^\.
 ^_build
+^blib
 ^MYMETA\.json$
