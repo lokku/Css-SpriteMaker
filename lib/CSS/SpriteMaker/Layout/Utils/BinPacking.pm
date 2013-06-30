@@ -3,12 +3,17 @@ package CSS::SpriteMaker::Layout::Utils::BinPacking;
 use strict;
 use warnings;
 
+our $VERSION = 0.01
 
 =head1 NAME
 
 CSS::SpriteMaker::Layout::Utils::BinPacking - Attempt to optimally pack multiple boxes into a rectangular bin.
 
 Basically, a Perl port of packer.growing.js (https://npmjs.org/package/binpacking)
+
+=head1 VERSION
+
+Version 0.01
 
 =cut
 
