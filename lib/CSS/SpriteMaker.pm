@@ -91,7 +91,7 @@ The object can be initialised as follows:
     
 Default values are set to:
 
-=over4
+=over 4
 
 =item remove_source_padding : false,
 
@@ -154,7 +154,7 @@ returns true if an error occurred during the procedure.
 
 Available layouts are:
 
-=over4
+=over 4
 
 =item * Packed: try to pack together the images as much as possible to reduce the
   image size.
