@@ -27,7 +27,7 @@ Version 0.02
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 
 =head1 SYNOPSIS
@@ -126,7 +126,13 @@ sub new {
         remove_source_padding => $opts{remove_source_padding},
         output_css_file => $opts{output_css_file},
         output_html_file => $opts{output_html_file},
-        layout_name => $opts{layout_name},
+
+        # layout_name is used as default
+        layout => {
+            name => $opts{layout_name},
+            # no options by default
+            options => {}
+        },
         rc_filename_to_classname => $opts{rc_filename_to_classname},
 
         # the maximum color value
@@ -786,11 +792,19 @@ sub _ensure_sources_info {
 
 Makes sure the user of this module has provided valid layout options and
 returns a $Layout object accordingly. Dies in case something goes wrong with
-the user input.
+the user input. A Layout actually runs over the specified items on instantiation.
 
-Parameters that allow us to obtain a $Layout object are:
+Parameters in %options (see code) that allow us to obtain a $Layout object are:
 
 - layout: a CSS::SpriteMaker::Layout object already;
+- layout: can also be a hashref like 
+    {
+        name => 'LayoutName',
+        options => {
+            'Layout-Specific option' => 'value',
+            ...
+        }
+    }
 - layout_name: the name of a CSS::SpriteMaker::Layout object.
 
 If none of the above parameters have been found in input options, the cache is
@@ -807,8 +821,13 @@ sub _ensure_layout {
 
     # Try to understand what layout is asked
     my $Layout;
-    if (exists $options{layout}) {
-        $Layout = $options{layout};
+    if (exists $options{layout} && ref $options{layout} ne 'HASH') {
+        if (exists $options{layout}{_layout_ran}) {
+            $Layout = $options{layout};
+        }
+        else {
+            warn 'a Layout object was specified but strangely was not executed on the specified items. NOTE: if a layout is instantiated it\'s always ran over the items!';
+        }
     }
 
     if (defined $Layout) {
@@ -822,14 +841,35 @@ sub _ensure_layout {
         #
         $self->_verbose(" * creating layout");
 
-        my $layout_name = $options{layout_name} // $self->{layout_name};
+        # default source of layout name
+        my $layout_name = $options{layout_name} // $self->{layout}{name};
+        my $rh_layout_options = $self->{layout}{options};
+
+        # override this if an hashref was passed among the options
+        # the user has passed something like:
+        # { ... 'layout' => { 'name' => 'SomeLayout' , 'options' => { ... } } }
+        if (exists $options{layout} && ref $options{layout} eq 'HASH') {
+            my $rh_specified_layout = $options{layout};
+            if (exists $rh_specified_layout->{name} 
+                && defined $rh_specified_layout->{name}) {
+
+                $layout_name = $rh_specified_layout->{name};
+
+                if (exists $options{layout}{options}) {
+                    $rh_layout_options = $options{layout}{options};
+                }
+            }
+            else {
+                warn 'ignoring the specified layout options. If you want to specify a layout through a hashref, you need to provide it in the following format { name => "some layout name", options => { ... } }';
+            }
+        }
 
         LOAD_LAYOUT_PLUGIN:
         for my $plugin ($self->plugins()) {
             my ($plugin_name) = reverse split "::", $plugin;
             if ($plugin eq $layout_name || $plugin_name eq $layout_name) {
                 $self->_verbose(" * using layout $plugin");
-                $Layout = $plugin->new($options{rh_sources_info});
+                $Layout = $plugin->new($options{rh_sources_info}, $rh_layout_options);
                 last LOAD_LAYOUT_PLUGIN;
             }
         }
