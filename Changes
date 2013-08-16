@@ -17,3 +17,8 @@ Revision history for CSS-SpriteMaker
 0.02    Sun Jun 30 14:40:08 BST 2013
         * improved CSS class names generation
         * improved POD
+
+0.03    Sat 17 Aug 2013 00:53:30 BST
+        * FixedDimension layout algorithm
+        * test FixedDimension layout algorithm
+        * pluggable layouts can now accept parameters
