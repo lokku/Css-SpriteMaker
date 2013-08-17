@@ -23,7 +23,7 @@ CSS::SpriteMaker - Combine several images into a single CSS sprite
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
