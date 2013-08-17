@@ -5,3 +5,5 @@
 ^MYMETA\.json$
 ^ignore.txt$
 ^MANIFEST.bak$
+^Build$
+^CSS\-SpriteMaker.*.tar.gz$

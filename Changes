@@ -22,3 +22,6 @@ Revision history for CSS-SpriteMaker
         * FixedDimension layout algorithm
         * test FixedDimension layout algorithm
         * pluggable layouts can now accept parameters
+
+0.04    Sat 17 Aug 2013 02:01:39 BST
+        * updated distribution metadata and version numbers
