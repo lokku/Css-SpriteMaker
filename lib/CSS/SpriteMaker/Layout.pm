@@ -3,6 +3,8 @@ package CSS::SpriteMaker::Layout;
 use strict;
 use warnings;
 
+use List::Util qw(max);
+
 =head1 NAME
 
 CSS::SpriteMaker::Layout - Layout interface for items placed on a 2D grid.
@@ -51,7 +53,7 @@ sub _layout_items {
 
 Gets the coordinates of a specific item within the layout.
 
-    my ($x, $y) = $Layout->get_item_coord("item129");
+    my ($x, $y) = $Layout->get_item_coord("129");
 
 Returns a list containing the x and the y coordinates of the specified element
 respectively.
@@ -65,7 +67,7 @@ sub get_item_coord {
     die "finalize() was not called on this class!" if !$self->{_layout_ran};
 
     if (!defined $self->{items} || !defined $self->{items}{$id}) {
-        warn "item id: $id doesn not appear to be part of this layout";
+        warn "item id: $id doesn't appear to be part of this layout";
         return;
     }
 
@@ -77,8 +79,8 @@ sub get_item_coord {
 
 Sets the coordinates of a layout item.
 
-    # sets coordinates of item129 to x: 100 y: 200
-    $Layout->set_item_coord("item129", 100, 200); 
+    # sets coordinates of item #129 to x: 100 y: 200
+    $Layout->set_item_coord("129", 100, 200); 
 
 Sets coordinates of the given element internally and returns undef.
 
@@ -96,6 +98,48 @@ sub set_item_coord {
         x => $x,
         y => $y,
     };
+
+    return;
+}
+
+=head2 move_items
+
+Moves all the items in this layout by the given deltay and deltax.
+    
+=cut
+
+sub move_items {
+    my $self = shift;
+    my ($dx, $dy) = @_;
+    for my $id ($self->get_item_ids) {
+        my ($x, $y) = $self->get_item_coord($id);
+        $self->set_item_coord($id, $x+$dx, $y+$dy);
+    }
+}
+
+=head2 merge_with
+
+Merges the current layout with the one specified. For a successful merge to
+happen, items in the old and in the new layout must have different ids.
+
+=cut
+
+sub merge_with {
+    my $self = shift;
+    my $Layout = shift;
+
+    my ($minx, $miny);
+    for my $id ($Layout->get_item_ids()) {
+        my ($x, $y) = $Layout->get_item_coord($id);
+
+        # check that the id doesn't exist
+        if (exists $self->{items}{id}) {
+            warn "the id $id already exists in the target layout!" 
+        }
+        
+        # merge
+        $self->set_item_coord($id, $x, $y);
+    }
 
     return;
 }

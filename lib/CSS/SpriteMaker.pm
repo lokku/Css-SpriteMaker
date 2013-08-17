@@ -64,6 +64,38 @@ OR
 
     $SpriteMaker->print_html();
 
+OR
+
+    my $SpriteMaker = CSS::SpriteMaker->new();
+
+    $SpriteMaker->compose_sprite(
+        { source_dir => 'sample_icons',
+          layout_name => 'Packed' 
+        },
+        { source_dir => 'more_icons',
+            layout => {
+                name => 'FixedDimension',
+                options => {
+                    'dimension' => 'horizontal',
+                    'n' => 4,
+                }
+            }
+        },
+        # the composing layout
+        layout => {
+            name => 'FixedDimension',
+            options => {
+                n => 2,
+            }
+        },
+        target_file => 'composite.png',
+    );
+
+    $SpriteMaker->print_css();
+
+    $SpriteMaker->print_html();
+
+
 =head1 DESCRIPTION
 
 A CSS Sprite is an image obtained by arranging many smaller images on a 2D
@@ -142,6 +174,114 @@ sub new {
     return bless $self, $class;
 }
 
+=head2 compose_sprite
+
+Compose many sprite layouts into one sprite. This is done by applying
+individual layout separately, then merging the final result together using a
+glue layout.
+
+my $is_error = $SpriteMaker->compose_sprite (
+    parts => [
+        { source_images => ['some/file.png', 'path/to/some_directory'],
+          layout_name => 'Packed',
+        },
+        { source_images => ['path/to/some_directory'],
+          layout => { 
+              name => 'DirectoryBased',
+          }
+        },
+    ],
+    # arrange the previous two layout using a glue layout
+    layout => {
+        name => 'FixedDimension',
+        dimension => 'horizontal',
+        n => 2
+    }
+    target_file => 'sample_sprite.png',
+    format => 'png8', # optional, default is png
+);
+
+=cut
+
+sub compose_sprite {
+    my $self = shift;
+    my %options = @_;
+
+    my @parts = @{$options{parts}};
+
+    my $i = 0;
+
+    # compose the following rh_source_info of Layout objects
+    my $rh_layout_source_info = {};
+
+    # also join each rh_sources_info_from the parts...
+    my %global_sources_info;
+
+    # keep all the layouts
+    my @layouts;
+
+    # layout each part
+    for my $rh_part (@parts) {
+
+        my $rh_sources_info = $self->_ensure_sources_info(%$rh_part);
+        for my $key (keys %$rh_sources_info) {
+            $global_sources_info{$key} = $rh_sources_info->{$key};
+        }
+
+        my $Layout = $self->_ensure_layout(%$rh_part,
+            rh_sources_info => $rh_sources_info
+        );
+
+        # we now do as if we were having images, but actually we have layouts
+        # to do this we re-build a typical rh_sources_info.
+        $rh_layout_source_info->{$i++} = {
+            name => sprintf("%sLayout%s", $options{layout_name} // $options{layout}{name}, $i),
+            pathname => "/fake/path_$i",
+            parentdir => "/fake",
+            width => $Layout->width,
+            height => $Layout->height,
+            first_pixel_x => 0,
+            first_pixel_y => 0,
+        };
+
+        # save this layout
+        push @layouts, $Layout;
+    }
+
+    # now that we have the $rh_source_info **about layouts**, we layout the
+    # layouts...
+    my $LayoutOfLayouts = $self->_ensure_layout(
+        layout => $options{layout},
+        rh_sources_info => $rh_layout_source_info,
+    );
+
+    # we need to adjust the position of each element of the layout according to
+    # the positions of the elements in $LayoutOfLayouts
+    my $FinalLayout;
+    for my $layout_id (sort { $a <=> $b } $LayoutOfLayouts->get_item_ids()) {
+        my $Layout = $layouts[$layout_id];
+        my ($dx, $dy) = $LayoutOfLayouts->get_item_coord($layout_id);
+        $Layout->move_items($dx, $dy);
+        if (!$FinalLayout) {
+            $FinalLayout = $Layout;
+        }
+        else {
+            # merge $FinalLayout <- $Layout
+            $FinalLayout->merge_with($Layout);
+        }
+    }
+
+    # fix width and height
+    $FinalLayout->{width} = $LayoutOfLayouts->width();
+    $FinalLayout->{height} = $LayoutOfLayouts->height();
+
+    # now simply draw the FinalLayout
+    return $self->_write_image(%options,
+        Layout => $FinalLayout,
+        rh_sources_info => \%global_sources_info,
+    );
+}
+
 =head2 make_sprite
 
 Creates the sprite file out of the specifed image files or directories, and
@@ -184,100 +324,10 @@ sub make_sprite {
         rh_sources_info => $rh_sources_info
     );
 
-    my $target_file     = $options{target_file} // $self->{target_file};
-    my $output_format   = $options{format} // $self->{format};
-
-    if (!$target_file) {
-        die "the ``target_file'' parameter is required for this subroutine or you must instantiate Css::SpriteMaker with the target_file parameter";
-    }
-
-    $self->_verbose(" * writing sprite image");
-
-    $self->_verbose(sprintf("Target image size: %s, %s",
-        $Layout->width(),
-        $Layout->height())
+    return $self->_write_image(%options,
+        Layout => $Layout,
+        rh_sources_info => $rh_sources_info
     );
-
-    my $Target = Image::Magick->new();
-
-    $Target->Set(size => sprintf("%sx%s",
-        $Layout->width(),
-        $Layout->height()
-    ));
-
-    # prepare the target image
-    if (my $err = $Target->ReadImage('xc:white')) {
-        warn $err;
-    }
-    $Target->Set(type => 'TruecolorMatte');
-    
-    # make it transparent
-    $self->_verbose(" - clearing canvas");
-    $Target->Draw(
-        fill => 'transparent', 
-        primitive => 'rectangle', 
-        points => sprintf("0,0 %s,%s", $Layout->width(), $Layout->height())
-    );
-    $Target->Transparent('color' => 'white');
-
-    # place each image according to the layout
-    ITEM_ID:
-    for my $source_id ($Layout->get_item_ids) {
-        my $rh_source_info = $rh_sources_info->{$source_id};
-        my ($layout_x, $layout_y) = $Layout->get_item_coord($source_id);
-
-        $self->_verbose(sprintf(" - placing %s (format: %s  size: %sx%s  position: [%s,%s])",
-            $rh_source_info->{pathname},
-            $rh_source_info->{format},
-            $rh_source_info->{width},
-            $rh_source_info->{height},
-            $layout_y,
-            $layout_x
-        ));
-        my $I = Image::Magick->new(); 
-        my $err = $I->Read($rh_source_info->{pathname});
-        if ($err) {
-            warn $err;
-            next ITEM_ID;
-        }
-
-        # place soure image in the target image according to the layout
-        my $destx = $layout_x;
-        my $startx = $rh_source_info->{first_pixel_x};
-        my $starty = $rh_source_info->{first_pixel_y};
-        for my $x ($startx .. $startx + $rh_source_info->{width} - 1) {
-            my $desty = $layout_y;
-            for my $y ($starty .. $starty + $rh_source_info->{height} - 1) {
-                my $p = $I->Get(
-                    sprintf('pixel[%s,%s]', $x, $y),
-                );
-                $Target->Set(
-                    sprintf('pixel[%s,%s]', $destx, $desty), $p); 
-                $desty++;
-            }
-            $destx++;
-        }
-    }
-
-    # write target image
-    my $err = $Target->Write("$output_format:".$target_file);
-    if ($err) {
-        warn "unable to obtain $target_file for writing it as $output_format. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats. Error: $err";
-
-        $self->_verbose("Wrote $target_file");
-
-        return 1;
-    }
-
-    # cache the layout and the rh_info structure so that it hasn't to be passed
-    # as a parameter next times.
-    $self->{_cache_layout} = $Layout;
-
-    # cache the target image file, as making the stylesheet can't be done
-    # without this information.
-    $self->{_cache_target_image_file} = $target_file;
-
-    return 0;
 }
 
 =head2 print_css
@@ -300,8 +350,8 @@ NOTE: make_sprite() must be called before this method is called.
 =cut
 
 sub print_css {
-    my $self            = shift;
-    my %options         = @_;
+    my $self     = shift;
+    my %options  = @_;
     
     my $rh_sources_info = $self->_ensure_sources_info(%options);
     my $Layout          = $self->_ensure_layout(%options,
@@ -315,7 +365,6 @@ sub print_css {
     my $stylesheet = $self->_get_stylesheet_string();
 
     print $fh $stylesheet;
-    close $fh;
 
     return 0;
 }
@@ -377,7 +426,10 @@ EOCSS
     # html
     for my $id (keys %$rh_sources_info) {
         my $rh_source_info = $rh_sources_info->{$id};
+        
+
         my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
+        $self->_verbose($rh_source_info->{name}, "->", $css_class);
 
         $css_class =~ s/[.]//;
 
@@ -520,6 +572,9 @@ sub _generate_css_class_names {
 Identify informations from the location of each input image, and assign
 numerical ids to each input image.
 
+We use a global image identifier for composite layouts. Each identified image
+must have a unique id in the scope of the same CSS::SpriteMaker instance!
+
 =cut
 
 sub _image_locations_to_source_info {
@@ -528,10 +583,12 @@ sub _image_locations_to_source_info {
 
     my %source_info;
     
-    # collect properties of each input image
+    # collect properties of each input image. 
+    $self->{_image_id} //= 0;
     IMAGE:
-    my $id = 0;
     for my $rh_location (@$ra_locations) {
+
+        my $id = $self->{_image_id};
 
         my %properties = %{$self->_get_image_properties(
             $rh_location->{pathname}
@@ -547,7 +604,7 @@ sub _image_locations_to_source_info {
             $source_info{$id}{$key} = $properties{$key};
         }
 
-        $id++;
+        $self->{_image_id}++;
     }
 
     return \%source_info;
@@ -782,10 +839,6 @@ sub _ensure_sources_info {
             die "Unable to create the source_info_structure!";
         }
     }
-    else {
-        # cache sources info
-        $self->{_cache_rh_source_info} = $rh_source_info;
-    }
 
     return $rh_source_info;
 }
@@ -823,7 +876,7 @@ sub _ensure_layout {
 
     die 'rh_sources_info parameter is required' if !exists $options{rh_sources_info};
 
-    # Try to understand what layout is asked
+    # Get the layout from the layout parameter in case it is a $Layout object
     my $Layout;
     if (exists $options{layout} && ref $options{layout} ne 'HASH') {
         if (exists $options{layout}{_layout_ran}) {
@@ -840,32 +893,26 @@ sub _ensure_layout {
         }
     }
     else {
-        #
-        # Load layout from plugins, and layout items
-        #
+        ##
+        ## We were unable to get the layout object directly, so we need to
+        ## create the layout from a name if possible...
+        ##
+
         $self->_verbose(" * creating layout");
 
-        # default source of layout name
-        my $layout_name = $options{layout_name} // $self->{layout}{name};
-        my $rh_layout_options = $self->{layout}{options};
+        # the layout name can be specified in the options as layout_name
+        my $layout_name = '';
+        my $layout_options;
+        if (exists $options{layout_name}) {
+            $layout_name = $options{layout_name};
+            # if this is the case this layout must support no options
+            $layout_options = {};  
+        }
 
-        # override this if an hashref was passed among the options
-        # the user has passed something like:
-        # { ... 'layout' => { 'name' => 'SomeLayout' , 'options' => { ... } } }
-        if (exists $options{layout} && ref $options{layout} eq 'HASH') {
-            my $rh_specified_layout = $options{layout};
-            if (exists $rh_specified_layout->{name} 
-                && defined $rh_specified_layout->{name}) {
-
-                $layout_name = $rh_specified_layout->{name};
-
-                if (exists $options{layout}{options}) {
-                    $rh_layout_options = $options{layout}{options};
-                }
-            }
-            else {
-                warn 'ignoring the specified layout options. If you want to specify a layout through a hashref, you need to provide it in the following format { name => "some layout name", options => { ... } }';
-            }
+        # maybe a layout => { name => 'something' was specified }
+        if (exists $options{layout} && exists $options{layout}{name}) {
+            $layout_name = $options{layout}{name};
+            $layout_options = $options{layout}{options} // {};
         }
 
         LOAD_LAYOUT_PLUGIN:
@@ -873,12 +920,12 @@ sub _ensure_layout {
             my ($plugin_name) = reverse split "::", $plugin;
             if ($plugin eq $layout_name || $plugin_name eq $layout_name) {
                 $self->_verbose(" * using layout $plugin");
-                $Layout = $plugin->new($options{rh_sources_info}, $rh_layout_options);
+                $Layout = $plugin->new($options{rh_sources_info}, $layout_options);
                 last LOAD_LAYOUT_PLUGIN;
             }
         }
 
-        if (!defined $Layout) {
+        if (!defined $Layout && $layout_name ne '') {
             die sprintf(
                 "The layout you've specified (%s) couldn't be found. Valid layouts are:\n%s",
                 $layout_name,
@@ -887,6 +934,9 @@ sub _ensure_layout {
         }
     }
 
+    #
+    # Still no layout, check the cache!
+    #
     if (!defined $Layout) {
         # try checking in the cache before giving up...
         if (exists $self->{_cache_layout} 
@@ -894,12 +944,140 @@ sub _ensure_layout {
  
             $Layout = $self->{_cache_layout};
         }
-        else {
-            die "Unable to find a layout, did you forget to pass the ``layout'' or ``layout_name'' parameter?";
+    }
+
+    #
+    # Still nothing, then use default layout
+    #
+    if (!defined $Layout) {
+        my $layout_name = $self->{layout}{name};
+        my $layout_options = {};
+        LOAD_DEFAULT_LAYOUT_PLUGIN:
+        for my $plugin ($self->plugins()) {
+            my ($plugin_name) = reverse split "::", $plugin;
+            if ($plugin eq $layout_name || $plugin_name eq $layout_name) {
+                $self->_verbose(" * using DEFAULT layout $plugin");
+                $Layout = $plugin->new($options{rh_sources_info}, $layout_options);
+                last LOAD_DEFAULT_LAYOUT_PLUGIN;
+            }
         }
     }
 
     return $Layout;
+}
+
+sub _write_image {
+    my $self    = shift;
+    my %options = @_;
+
+    my $target_file   = $options{target_file} // $self->{target_file};
+    my $output_format = $options{format} // $self->{format};
+    my $Layout        = $options{Layout} // 0;
+    my $rh_sources_info = $options{rh_sources_info} // 0;
+
+    if (!$target_file) {
+        die "the ``target_file'' parameter is required for this subroutine or you must instantiate Css::SpriteMaker with the target_file parameter";
+    }
+
+    if (!$rh_sources_info) {
+        die "The 'rh_sources_info' parameter must be passed to _write_image";
+    }
+
+    if (!$Layout) {
+        die "The 'layout' parameter needs to be specified for _write_image, and must be a CSS::SpriteMaker::Layout object";
+    }
+
+    $self->_verbose(" * writing sprite image");
+
+    $self->_verbose(sprintf("Target image size: %s, %s",
+        $Layout->width(),
+        $Layout->height())
+    );
+
+    my $Target = Image::Magick->new();
+
+    $Target->Set(size => sprintf("%sx%s",
+        $Layout->width(),
+        $Layout->height()
+    ));
+
+    # prepare the target image
+    if (my $err = $Target->ReadImage('xc:white')) {
+        warn $err;
+    }
+    $Target->Set(type => 'TruecolorMatte');
+    
+    # make it transparent
+    $self->_verbose(" - clearing canvas");
+    $Target->Draw(
+        fill => 'transparent', 
+        primitive => 'rectangle', 
+        points => sprintf("0,0 %s,%s", $Layout->width(), $Layout->height())
+    );
+    $Target->Transparent('color' => 'white');
+
+    # place each image according to the layout
+    ITEM_ID:
+    for my $source_id (sort { $a <=> $b } $Layout->get_item_ids) {
+        my $rh_source_info = $rh_sources_info->{$source_id};
+        my ($layout_x, $layout_y) = $Layout->get_item_coord($source_id);
+
+        $self->_verbose(sprintf(" - placing %s (format: %s  size: %sx%s  position: [%s,%s])",
+            $rh_source_info->{pathname},
+            $rh_source_info->{format},
+            $rh_source_info->{width},
+            $rh_source_info->{height},
+            $layout_y,
+            $layout_x
+        ));
+        my $I = Image::Magick->new(); 
+        my $err = $I->Read($rh_source_info->{pathname});
+        if ($err) {
+            warn $err;
+            next ITEM_ID;
+        }
+
+        # place soure image in the target image according to the layout
+        my $destx = $layout_x;
+        my $startx = $rh_source_info->{first_pixel_x};
+        my $starty = $rh_source_info->{first_pixel_y};
+        for my $x ($startx .. $startx + $rh_source_info->{width} - 1) {
+            my $desty = $layout_y;
+            for my $y ($starty .. $starty + $rh_source_info->{height} - 1) {
+                my $p = $I->Get(
+                    sprintf('pixel[%s,%s]', $x, $y),
+                );
+                $Target->Set(
+                    sprintf('pixel[%s,%s]', $destx, $desty), $p); 
+                $desty++;
+            }
+            $destx++;
+        }
+    }
+
+    # write target image
+    my $err = $Target->Write("$output_format:".$target_file);
+    if ($err) {
+        warn "unable to obtain $target_file for writing it as $output_format. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats. Error: $err";
+
+        $self->_verbose("Wrote $target_file");
+
+        return 1;
+    }
+
+    # cache the layout and the rh_info structure so that it hasn't to be passed
+    # as a parameter next times.
+    $self->{_cache_layout} = $Layout;
+
+    # cache the target image file, as making the stylesheet can't be done
+    # without this information.
+    $self->{_cache_target_image_file} = $target_file;
+
+    # cache sources info
+    $self->{_cache_rh_source_info} = $rh_sources_info;
+
+    return 0;
+    
 }
 
 =head2 _get_image_properties
@@ -1004,18 +1182,18 @@ sub _get_image_properties {
     }
 
     # Store information about the color of each pixel
-    $rh_info->{colors}{map} = {};
-    for my $x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
-        for my $y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
-            my $color = $Image->Get(
-                sprintf('pixel[%s,%s]', $x, $y),
-            );
-            push @{$rh_info->{colors}{map}{$color}}, {
-                x => $x,
-                y => $y,
-            };
-        }
-    }
+    # $rh_info->{colors}{map} = {};
+    # for my $x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
+    #     for my $y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
+    #         my $color = $Image->Get(
+    #             sprintf('pixel[%s,%s]', $x, $y),
+    #         );
+    #         push @{$rh_info->{colors}{map}{$color}}, {
+    #             x => $x,
+    #             y => $y,
+    #         };
+    #     }
+    # }
 
     return $rh_info; 
 }
