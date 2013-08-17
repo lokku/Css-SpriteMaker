@@ -82,7 +82,7 @@ Create and configure a new CSS::SpriteMaker object.
 The object can be initialised as follows:
     
     my $SpriteMaker = CSS::SpriteMaker->new({
-        rc_filename_to_classname => sub { my $filename = shift; ... },
+        rc_filename_to_classname => sub { my $filename = shift; ... }, # optional
         source_dir => '/tmp/test/images',       # optional
         target_file => '/tmp/test/mysprite.png' # optional
         remove_source_padding => 1, # optional
@@ -166,7 +166,10 @@ Available layouts are:
   image size.
 
 =item * DirectoryBased: put images under the same directory on the same horizontal
-  line. Within each line, order alphabetically.
+  row. Order alphabetically within each row.
+
+=item * FixedDimension: arrange a maximum of B<n> images on the same row (or
+  column).
 
 =back
 
@@ -514,7 +517,8 @@ sub _generate_css_class_names {
 
 =head2 _image_locations_to_source_info
 
-Identify informations from the location of each input image.
+Identify informations from the location of each input image, and assign
+numerical ids to each input image.
 
 =cut
 
