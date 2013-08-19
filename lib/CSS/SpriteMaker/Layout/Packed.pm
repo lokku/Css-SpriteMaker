@@ -5,7 +5,7 @@ use warnings;
 
 use base 'CSS::SpriteMaker::Layout';
 
-use CSS::SpriteMaker::Layout::Utils::BinPacking;
+use CSS::SpriteMaker::Layout::Packed::Node;
 
 =head1 NAME
 
@@ -52,7 +52,7 @@ our $VERSION = '0.01';
 
 Instantiates the layout:
 
-    my $DirectoryBasedLayout = CSS::SpriteMaker::Layout::DirectoryBased->new(
+    my $PackedLayout = CSS::SpriteMaker::Layout::Packed->new(
         $rh_item_info
     );
 
@@ -93,40 +93,31 @@ sub _layout_items {
             $rh_items_info->{$a}{height}
         }
         keys %$rh_items_info;
-   
-    # pack the items
-    my $Packer = CSS::SpriteMaker::Layout::Utils::BinPacking->new();
 
-    # copy the items into blocks (input for the packer)
-    my @blocks = map {
-        { w => $rh_items_info->{$_}{width},
-          h => $rh_items_info->{$_}{height}, 
-          id => $_,
-        }
-    } @items_sorted;
-
-    # fit each block
-    $Packer->fit(\@blocks);
+    my $root = CSS::SpriteMaker::Layout::Packed::Node->new(
+        0, 0,
+        $rh_items_info->{$items_sorted[0]}{width},
+        $rh_items_info->{$items_sorted[0]}{height}
+    );
 
     my $max_w = 0;
     my $max_h = 0;
-    for my $rh_block (@blocks) {
-
-        my $block_id = $rh_block->{id};
-
-        if (my $rh_fit = $rh_block->{fit}) {
-            # convert to more clean structure - i.e., take from the packed boxes
-            # the only two information that we're interested in and augment our
-            # layout
-            $self->set_item_coord($block_id, $rh_fit->{x}, $rh_fit->{y});
-            
-            # compute the overall width/height
-            $max_w = $rh_fit->{w} + $rh_fit->{x} if $max_w < $rh_fit->{w} + $rh_fit->{x};
-            $max_h = $rh_fit->{h} + $rh_fit->{y} if $max_h < $rh_fit->{h} + $rh_fit->{y};
+    my $node;
+    for my $image_id (@items_sorted) {
+        my $image = $rh_items_info->{$image_id};
+        $node = $root->find($root, $image->{width}, $image->{height});
+        if ($node) {
+            $node = $root->split($node, $image->{width}, $image->{height});
         }
         else {
-            warn "Wasn't able to fit block $block_id";
+            $node = $root->grow($image->{width}, $image->{height});
         }
+
+        $self->set_item_coord($image_id, $node->{x}, $node->{y});
+
+        # compute the overall width/height
+        $max_w = $image->{width} + $node->{x} if $max_w < $image->{width} + $node->{x};
+        $max_h = $image->{height} + $node->{y} if $max_h < $image->{height} + $node->{y};
     }
 
     # write dimensions in the resulting layout
