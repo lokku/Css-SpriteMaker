@@ -25,3 +25,7 @@ Revision history for CSS-SpriteMaker
 
 0.04    Sat 17 Aug 2013 02:01:39 BST
         * updated distribution metadata and version numbers
+
+0.05    Mon 19 Aug 2013 07:44:25 BST
+        * allow composite layouts (layouts of layouts!)
+        * fix bug in Packed Layout by porting packing algorithm from python glue
