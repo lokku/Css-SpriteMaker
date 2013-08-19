@@ -878,7 +878,7 @@ sub _ensure_layout {
 
     # Get the layout from the layout parameter in case it is a $Layout object
     my $Layout;
-    if (exists $options{layout} && ref $options{layout} ne 'HASH') {
+    if (exists $options{layout} && $options{layout} && ref $options{layout} ne 'HASH') {
         if (exists $options{layout}{_layout_ran}) {
             $Layout = $options{layout};
         }
