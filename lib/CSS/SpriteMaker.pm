@@ -69,18 +69,20 @@ OR
     my $SpriteMaker = CSS::SpriteMaker->new();
 
     $SpriteMaker->compose_sprite(
-        { source_dir => 'sample_icons',
-          layout_name => 'Packed' 
-        },
-        { source_dir => 'more_icons',
-            layout => {
-                name => 'FixedDimension',
-                options => {
-                    'dimension' => 'horizontal',
-                    'n' => 4,
+        parts => [
+            { source_dir => 'sample_icons',
+              layout_name => 'Packed' 
+            },
+            { source_dir => 'more_icons',
+                layout => {
+                    name => 'FixedDimension',
+                    options => {
+                        'dimension' => 'horizontal',
+                        'n' => 4,
+                    }
                 }
-            }
-        },
+            },
+        ],
         # the composing layout
         layout => {
             name => 'FixedDimension',
