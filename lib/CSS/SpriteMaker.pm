@@ -202,6 +202,7 @@ my $is_error = $SpriteMaker->compose_sprite (
           layout => { 
               name => 'DirectoryBased',
           }
+          include_in_css => 0, # optional
         },
     ],
     # arrange the previous two layout using a glue layout
@@ -213,6 +214,9 @@ my $is_error = $SpriteMaker->compose_sprite (
     target_file => 'sample_sprite.png',
     format => 'png8', # optional, default is png
 );
+
+Note the optional include_in_css option, which allows to exclude a group of
+images from the CSS (still including them in the resulting image).
 
 =cut
 
@@ -562,7 +566,10 @@ sub _generate_css_class_names {
     my %existing_classnames_lookup;
     my %id_to_class_mapping;
 
+    PROCESS_SOURCEINFO:
     for my $id (keys %$rh_source_info) {
+        
+        next PROCESS_SOURCEINFO if !$rh_source_info->{$id}{include_in_css};
 
         my $css_class = $self->_generate_css_class_name(
             $rh_source_info->{$id}{name}
@@ -611,6 +618,7 @@ must have a unique id in the scope of the same CSS::SpriteMaker instance!
 sub _image_locations_to_source_info {
     my $self         = shift;
     my $ra_locations = shift;
+    my $include_in_css = shift // 1;
 
     my %source_info;
     
@@ -624,6 +632,9 @@ sub _image_locations_to_source_info {
         my %properties = %{$self->_get_image_properties(
             $rh_location->{pathname}
         )};
+
+        # add whether to include this item in the css or not
+        $properties{include_in_css} = $include_in_css;
 
         # skip invalid images
         next IMAGE if !%properties;
@@ -710,7 +721,9 @@ sub _get_stylesheet_string {
 
     my $rah_cssinfo = $self->get_css_info_structure(); 
 
-    my @classes = map { "." . $_->{css_class} } @$rah_cssinfo;
+    my @classes = map { "." . $_->{css_class} } 
+        grep { defined $_->{css_class} }
+        @$rah_cssinfo;
 
     my @stylesheet;
 
@@ -723,14 +736,16 @@ sub _get_stylesheet_string {
     );
 
     for my $rh_info (@$rah_cssinfo) {
-        push @stylesheet, sprintf(
-            ".%s { background-position: %spx %spx; width: %spx; height: %spx; }",
-            $rh_info->{css_class}, 
-            -1 * $rh_info->{x},
-            -1 * $rh_info->{y},
-            $rh_info->{width},
-            $rh_info->{height},
-        );
+        if (defined $rh_info->{css_class}) {
+            push @stylesheet, sprintf(
+                ".%s { background-position: %spx %spx; width: %spx; height: %spx; }",
+                $rh_info->{css_class}, 
+                -1 * $rh_info->{x},
+                -1 * $rh_info->{y},
+                $rh_info->{width},
+                $rh_info->{height},
+            );
+        }
     }
 
     return join "\n", @stylesheet;
@@ -866,8 +881,13 @@ sub _ensure_sources_info {
             push @locations, @$ra_locations;
         }
 
+        my $include_in_css = exists $options{include_in_css} 
+            ? $options{include_in_css}
+            : 1;
+
         $rh_source_info = $self->_image_locations_to_source_info(
-            \@locations
+            \@locations,
+            $include_in_css,
         );
     }
     
@@ -1224,18 +1244,18 @@ sub _get_image_properties {
     }
 
     # Store information about the color of each pixel
-    # $rh_info->{colors}{map} = {};
-    # for my $x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
-    #     for my $y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
-    #         my $color = $Image->Get(
-    #             sprintf('pixel[%s,%s]', $x, $y),
-    #         );
-    #         push @{$rh_info->{colors}{map}{$color}}, {
-    #             x => $x,
-    #             y => $y,
-    #         };
-    #     }
-    # }
+    $rh_info->{colors}{map} = {};
+    for my $x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
+        for my $y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
+            my $color = $Image->Get(
+                sprintf('pixel[%s,%s]', $x, $y),
+            );
+            push @{$rh_info->{colors}{map}{$color}}, {
+                x => $x,
+                y => $y,
+            };
+        }
+    }
 
     return $rh_info; 
 }
