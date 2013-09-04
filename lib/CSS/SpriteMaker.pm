@@ -36,7 +36,17 @@ our $VERSION = '0.05';
 
     my $SpriteMaker = CSS::SpriteMaker->new(
         verbose => 1, # optional
+
+        # if provided will replace the default way of creating css classnames
+        # out of image filenames.
+        #
         rc_filename_to_classname => sub { my $filename = shift; ... } # optional
+
+        # this callback gets called after the css class name for an image is
+        # generated. It is the latest possible moment at which you can modify
+        # the resulting css class name (e.g., add a prefix to it).
+        #
+        rc_override_classname => sub { my $css_class = shift; ... } # optional
     );
 
     $SpriteMaker->make_sprite(
@@ -168,6 +178,7 @@ sub new {
             options => {}
         },
         rc_filename_to_classname => $opts{rc_filename_to_classname},
+        rc_override_classname => $opts{rc_override_classname},
 
         # the maximum color value
         color_max => 2 ** Image::Magick->QuantumDepth - 1,
@@ -739,6 +750,7 @@ sub _generate_css_class_name {
     my $filename = shift;
 
     my $rc_filename_to_classname = $self->{rc_filename_to_classname};
+    my $rc_override_classname = $self->{rc_override_classname};
 
     if (defined $rc_filename_to_classname) {
         my $classname = $rc_filename_to_classname->($filename);
@@ -751,6 +763,11 @@ sub _generate_css_class_name {
                 $filename
             );
         }
+    
+        if (defined $rc_override_classname) {
+            $classname = $rc_override_classname->($classname);
+        }
+
         return $classname;
     }
 
@@ -771,6 +788,11 @@ sub _generate_css_class_name {
 
     # remove initial dashes if any
     $css_class =~ s/\A-+//g;
+
+    # allow change (e.g., add prefix)
+    if (defined $rc_override_classname) {
+        $css_class = $rc_override_classname->($css_class);
+    }
 
     return $css_class;
 }
