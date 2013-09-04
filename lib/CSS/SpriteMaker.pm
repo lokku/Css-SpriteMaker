@@ -438,6 +438,9 @@ sub print_html {
     print $fh '<html><head><style type="text/css">';
     print $fh $stylesheet;
     print $fh <<EOCSS;
+    h1 {
+        color: #0073D9;
+    }
     .color {
         width: 10px;
         height: 10px;
@@ -445,31 +448,85 @@ sub print_html {
         float: left;
         border: 1px solid black;
     }
+    .item {
+        margin-bottom: 1em;
+    }
     .item-container {
-        clear: both;
         background-color: #BCE;
-        width: 340px;
+        max-width: 340px;
         margin: 10px;
         -webkit-border-radius: 10px;
         -moz-border-radius: 10px;
         -o-border-radius: 10px;
         border-radius: 10px;
+        overflow: hidden;
+        float: left;
+    }
+    .included {
+        background-color: #BCE;
+    }
+    .not-included {
+        background-color: #BEBEBE;
     }
 EOCSS
-    print $fh '</style></head><body>';
+    print $fh '</style></head><body><h1>CSS::SpriteMaker Image Information</h1>';
 
     # html
     for my $id (keys %$rh_sources_info) {
         my $rh_source_info = $rh_sources_info->{$id};
         
-
         my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
-        $self->_verbose($rh_source_info->{name}, "->", $css_class);
+        $self->_verbose(
+            sprintf("%s -> %s", $rh_source_info->{name}, $css_class)
+        );
 
         $css_class =~ s/[.]//;
 
-        print $fh '<div class="item-container">';
-        print $fh "  <div class=\"item $css_class\"></div>";
+        my $is_included = $rh_source_info->{include_in_css};
+        my $width = $rh_source_info->{width};
+        my $height = $rh_source_info->{height};
+
+        my $onclick = <<EONCLICK;
+    if (typeof current !== 'undefined' && current !== this) {
+        current.style.width = current.w;
+        current.style.height = current.h;
+        current.style.position = '';
+        delete current.w;
+        delete current.h;
+    }
+    if (typeof this.h === 'undefined') {
+        this.h = this.style.height;
+        this.w = this.style.width;
+        this.style.width = '';
+        this.style.height = '';
+        this.style.position = 'fixed';
+        current = this;
+    }
+    else {
+        this.style.width = this.w;
+        this.style.height = this.h;
+        this.style.position = '';
+        delete this.w;
+        delete this.h;
+        current = undefined;
+    }
+EONCLICK
+
+
+        print $fh sprintf(
+            '<div class="item-container%s" onclick="%s" style="padding: 1em; width: %spx; height: %spx;">',
+            $is_included ? ' included' : ' not-included',
+            $onclick,
+            $width, $height
+        );
+
+            
+        if ($is_included) {
+            print $fh "  <div class=\"item $css_class\"></div>";
+        }
+        else {
+            print $fh "  <div class=\"item\" style=\"width: ${width}px; height: ${height}px;\"></div>";
+        }
         print $fh "  <div class=\"item_description\">";
         for my $key (keys %$rh_source_info) {
             next if $key eq "colors";

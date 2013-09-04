@@ -35,3 +35,4 @@ Revision history for CSS-SpriteMaker
         * allow override of the generated css class name (e.g., add a prefix)
         * remove '+' characters during CSS class generation
         * allow parts of combined layout to be hidden in CSS
+        * nicer html preview of CSS image sprites
