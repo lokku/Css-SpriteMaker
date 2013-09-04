@@ -33,3 +33,4 @@ Revision history for CSS-SpriteMaker
 0.06    
         * allow custom target image filename in CSS stylesheet generation
         * allow override of the generated css class name (e.g., add a prefix)
+        * remove '+' characters during CSS class generation

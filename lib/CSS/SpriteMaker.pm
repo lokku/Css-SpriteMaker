@@ -777,8 +777,8 @@ sub _generate_css_class_name {
     # remove image extensions if any
     $css_class =~ s/[.](tif|tiff|gif|jpeg|jpg|jif|jfif|jp2|jpx|j2k|j2c|fpx|pcd|png|pdf)\Z//;
 
-    # remove @ []
-    $css_class =~ s/[@\]\[]//g;
+    # remove @ [] +
+    $css_class =~ s/[+@\]\[]//g;
 
     # turn certain characters into dashes
     $css_class =~ s/[\s_.]/-/g;
