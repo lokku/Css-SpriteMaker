@@ -30,7 +30,7 @@ Revision history for CSS-SpriteMaker
         * allow composite layouts (layouts of layouts!)
         * fix bug in Packed Layout by porting packing algorithm from python glue
 
-0.06    
+0.06    Wed 4 Sep 2013 20:16:53 BST
         * allow custom target image filename in CSS stylesheet generation
         * allow override of the generated css class name (e.g., add a prefix)
         * remove '+' characters during CSS class generation
