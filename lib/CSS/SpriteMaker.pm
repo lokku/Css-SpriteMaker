@@ -337,6 +337,9 @@ sub make_sprite {
 Creates and prints the css stylesheet for the sprite that was previously
 produced.
 
+You can specify the filename or the filehandle where the output CSS should be
+written:
+
     $SpriteMaker->print_css(
        filehandle => $fh, 
     );
@@ -345,6 +348,17 @@ OR
 
     $SpriteMaker->print_css(
        filename => 'relative/path/to/style.css',
+    );
+
+Optionally you can provide the name of the image file that should be included in
+the CSS file:
+
+    # within the style.css file, override the default path to the sprite image
+    # with "custom/path/to/sprite.png".
+    #
+    $SpriteMaker->print_css(
+       filename => 'relative/path/to/style.css',
+       sprite_filename => 'custom/path/to/sprite.png', # optional
     );
 
 NOTE: make_sprite() must be called before this method is called.
@@ -364,7 +378,11 @@ sub print_css {
 
     $self->_verbose("  * writing css file");
 
-    my $stylesheet = $self->_get_stylesheet_string();
+    my $target_image_filename;
+    if (exists $options{sprite_filename} && $options{sprite_filename}) {
+        $target_image_filename = $options{sprite_filename};
+    }
+    my $stylesheet = $self->_get_stylesheet_string($target_image_filename);
 
     print $fh $stylesheet;
 
@@ -400,7 +418,7 @@ sub print_html {
     
     $self->_verbose("  * writing html sample page");
 
-    my $stylesheet = $self->_get_stylesheet_string($Layout, $rh_sources_info);
+    my $stylesheet = $self->_get_stylesheet_string();
 
     print $fh '<html><head><style type="text/css">';
     print $fh $stylesheet;

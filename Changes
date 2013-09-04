@@ -29,3 +29,6 @@ Revision history for CSS-SpriteMaker
 0.05    Mon 19 Aug 2013 07:44:25 BST
         * allow composite layouts (layouts of layouts!)
         * fix bug in Packed Layout by porting packing algorithm from python glue
+
+0.06    
+        * allow custom target image filename in CSS stylesheet generation
