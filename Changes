@@ -36,3 +36,4 @@ Revision history for CSS-SpriteMaker
         * remove '+' characters during CSS class generation
         * allow parts of combined layout to be hidden in CSS
         * nicer html preview of CSS image sprites
+        * allow composite layouts without glue layout
