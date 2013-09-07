@@ -29,3 +29,10 @@ Revision history for CSS-SpriteMaker
 0.05    Mon 19 Aug 2013 07:44:25 BST
         * allow composite layouts (layouts of layouts!)
         * fix bug in Packed Layout by porting packing algorithm from python glue
+
+0.06    Wed 4 Sep 2013 20:16:53 BST
+        * allow custom target image filename in CSS stylesheet generation
+        * allow override of the generated css class name (e.g., add a prefix)
+        * remove '+' characters during CSS class generation
+        * allow parts of combined layout to be hidden in CSS
+        * nicer html preview of CSS image sprites
