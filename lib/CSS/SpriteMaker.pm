@@ -675,6 +675,7 @@ must have a unique id in the scope of the same CSS::SpriteMaker instance!
 sub _image_locations_to_source_info {
     my $self         = shift;
     my $ra_locations = shift;
+    my $remove_source_padding = shift;
     my $include_in_css = shift // 1;
 
     my %source_info;
@@ -687,7 +688,8 @@ sub _image_locations_to_source_info {
         my $id = $self->{_image_id};
 
         my %properties = %{$self->_get_image_properties(
-            $rh_location->{pathname}
+            $rh_location->{pathname},
+            $remove_source_padding,
         )};
 
         # add whether to include this item in the css or not
@@ -915,6 +917,18 @@ sub _ensure_sources_info {
     my $self = shift;
     my %options = @_;
 
+    ##
+    ## Shall we remove source padding?
+    ## - first check if an option is provided
+    ## - otherwise default to the option in $self
+    my $remove_source_padding = $self->{remove_source_padding};
+    if (exists $options{remove_source_padding} 
+        && defined $options{remove_source_padding}) {
+
+        $remove_source_padding = $options{remove_source_padding};
+    }
+
+
     my $rh_source_info;
 
     return $options{source_info} if exists $options{source_info};
@@ -944,7 +958,8 @@ sub _ensure_sources_info {
 
         $rh_source_info = $self->_image_locations_to_source_info(
             \@locations,
-            $include_in_css,
+            $remove_source_padding,
+            $include_in_css
         );
     }
     
@@ -1208,6 +1223,7 @@ Return an hashref of information about the image at the given pathname.
 sub _get_image_properties {
     my $self       = shift;
     my $image_path = shift;
+    my $remove_source_padding = shift;
 
     my $Image = Image::Magick->new();
 
@@ -1226,7 +1242,7 @@ sub _get_image_properties {
     $rh_info->{colors}{total} = $Image->Get('colors');
     $rh_info->{format} = $Image->Get('magick');
 
-    if ($self->{remove_source_padding}) {
+    if ($remove_source_padding) {
         #
         # Find borders for this image.
         #
