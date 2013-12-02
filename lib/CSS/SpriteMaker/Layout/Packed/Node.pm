@@ -155,7 +155,7 @@ Grow the canvas to the right.
 
 Parameters:
 
-=head2
+=over 4
 
 =item Pixels to grow down (width).
 
@@ -196,7 +196,7 @@ Grow the canvas down.
 
 Parameters:
 
-=head2
+=over 4
 
 =item Pixels to grow down (width).
 

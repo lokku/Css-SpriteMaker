@@ -3,10 +3,9 @@ package CSS::SpriteMaker;
 use strict;
 use warnings;
 
-use feature qw(say);
-
 use File::Find;
 use Image::Magick;
+use List::Util qw(max);
 
 use Module::Pluggable 
     search_path => ['CSS::SpriteMaker::Layout'],
@@ -23,11 +22,11 @@ CSS::SpriteMaker - Combine several images into a single CSS sprite
 
 =head1 VERSION
 
-Version 0.05
+Version 0.07
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 
 =head1 SYNOPSIS
@@ -224,79 +223,12 @@ sub compose_sprite {
     my $self = shift;
     my %options = @_;
 
-    my @parts = @{$options{parts}};
-
-    my $i = 0;
-
-    # compose the following rh_source_info of Layout objects
-    my $rh_layout_source_info = {};
-
-    # also join each rh_sources_info_from the parts...
-    my %global_sources_info;
-
-    # keep all the layouts
-    my @layouts;
-
-    # layout each part
-    for my $rh_part (@parts) {
-
-        my $rh_sources_info = $self->_ensure_sources_info(%$rh_part);
-        for my $key (keys %$rh_sources_info) {
-            $global_sources_info{$key} = $rh_sources_info->{$key};
-        }
-
-        my $Layout = $self->_ensure_layout(%$rh_part,
-            rh_sources_info => $rh_sources_info
-        );
-
-        # we now do as if we were having images, but actually we have layouts
-        # to do this we re-build a typical rh_sources_info.
-        $rh_layout_source_info->{$i++} = {
-            name => sprintf("%sLayout%s", $options{layout_name} // $options{layout}{name}, $i),
-            pathname => "/fake/path_$i",
-            parentdir => "/fake",
-            width => $Layout->width,
-            height => $Layout->height,
-            first_pixel_x => 0,
-            first_pixel_y => 0,
-        };
-
-        # save this layout
-        push @layouts, $Layout;
+    if (exists $options{layout}) {
+        return $self->_compose_sprite_with_glue(%options);
     }
-
-    # now that we have the $rh_source_info **about layouts**, we layout the
-    # layouts...
-    my $LayoutOfLayouts = $self->_ensure_layout(
-        layout => $options{layout},
-        rh_sources_info => $rh_layout_source_info,
-    );
-
-    # we need to adjust the position of each element of the layout according to
-    # the positions of the elements in $LayoutOfLayouts
-    my $FinalLayout;
-    for my $layout_id (sort { $a <=> $b } $LayoutOfLayouts->get_item_ids()) {
-        my $Layout = $layouts[$layout_id];
-        my ($dx, $dy) = $LayoutOfLayouts->get_item_coord($layout_id);
-        $Layout->move_items($dx, $dy);
-        if (!$FinalLayout) {
-            $FinalLayout = $Layout;
-        }
-        else {
-            # merge $FinalLayout <- $Layout
-            $FinalLayout->merge_with($Layout);
-        }
+    else {
+        return $self->_compose_sprite_without_glue(%options);
     }
-
-    # fix width and height
-    $FinalLayout->{width} = $LayoutOfLayouts->width();
-    $FinalLayout->{height} = $LayoutOfLayouts->height();
-
-    # now simply draw the FinalLayout
-    return $self->_write_image(%options,
-        Layout => $FinalLayout,
-        rh_sources_info => \%global_sources_info,
-    );
 }
 
 =head2 make_sprite
@@ -681,11 +613,10 @@ sub _image_locations_to_source_info {
     my %source_info;
     
     # collect properties of each input image. 
-    $self->{_image_id} //= 0;
     IMAGE:
     for my $rh_location (@$ra_locations) {
 
-        my $id = $self->{_image_id};
+        my $id = $self->_get_image_id;
 
         my %properties = %{$self->_get_image_properties(
             $rh_location->{pathname},
@@ -704,11 +635,21 @@ sub _image_locations_to_source_info {
         for my $key (keys %properties) {
             $source_info{$id}{$key} = $properties{$key};
         }
-
-        $self->{_image_id}++;
     }
 
     return \%source_info;
+}
+
+=head2 _get_image_id
+
+Returns a global numeric identifier.
+
+=cut
+
+sub _get_image_id {
+    my $self = shift;
+    $self->{_unique_id} //= 0;
+    return $self->{_unique_id}++;
 }
 
 =head2 _locate_image_files
@@ -1332,6 +1273,178 @@ sub _get_image_properties {
 
     return $rh_info; 
 }
+
+=head2 _compose_sprite_with_glue
+
+Compose a layout though a glue layout: first each image set is layouted, then
+it is composed using the specified glue layout.
+
+=cut
+
+sub _compose_sprite_with_glue {
+    my $self = shift;
+    my %options = @_;
+
+    my @parts = @{$options{parts}};
+
+    my $i = 0;
+
+    # compose the following rh_source_info of Layout objects
+    my $rh_layout_source_info = {};
+
+    # also join each rh_sources_info_from the parts...
+    my %global_sources_info;
+
+    # keep all the layouts
+    my @layouts;
+
+    # layout each part
+    for my $rh_part (@parts) {
+
+        my $rh_sources_info = $self->_ensure_sources_info(%$rh_part);
+        for my $key (keys %$rh_sources_info) {
+            $global_sources_info{$key} = $rh_sources_info->{$key};
+        }
+
+        my $Layout = $self->_ensure_layout(%$rh_part,
+            rh_sources_info => $rh_sources_info
+        );
+
+        # we now do as if we were having images, but actually we have layouts
+        # to do this we re-build a typical rh_sources_info.
+        $rh_layout_source_info->{$i++} = {
+            name => sprintf("%sLayout%s", $options{layout_name} // $options{layout}{name}, $i),
+            pathname => "/fake/path_$i",
+            parentdir => "/fake",
+            width => $Layout->width,
+            height => $Layout->height,
+            first_pixel_x => 0,
+            first_pixel_y => 0,
+        };
+
+        # save this layout
+        push @layouts, $Layout;
+    }
+
+    # now that we have the $rh_source_info **about layouts**, we layout the
+    # layouts...
+    my $LayoutOfLayouts = $self->_ensure_layout(
+        layout => $options{layout},
+        rh_sources_info => $rh_layout_source_info,
+    );
+
+    # we need to adjust the position of each element of the layout according to
+    # the positions of the elements in $LayoutOfLayouts
+    my $FinalLayout;
+    for my $layout_id (sort { $a <=> $b } $LayoutOfLayouts->get_item_ids()) {
+        my $Layout = $layouts[$layout_id];
+        my ($dx, $dy) = $LayoutOfLayouts->get_item_coord($layout_id);
+        $Layout->move_items($dx, $dy);
+        if (!$FinalLayout) {
+            $FinalLayout = $Layout;
+        }
+        else {
+            # merge $FinalLayout <- $Layout
+            $FinalLayout->merge_with($Layout);
+        }
+    }
+
+    # fix width and height
+    $FinalLayout->{width} = $LayoutOfLayouts->width();
+    $FinalLayout->{height} = $LayoutOfLayouts->height();
+
+    # now simply draw the FinalLayout
+    return $self->_write_image(%options,
+        Layout => $FinalLayout,
+        rh_sources_info => \%global_sources_info,
+    );
+}
+
+=head2 _compose_sprite_without_glue
+
+Compose a layout without glue layout: the previously lay-outed image set
+becomes part of the next image set.
+
+=cut
+
+sub _compose_sprite_without_glue {
+    my $self = shift;
+    my %options = @_;
+
+    my %global_sources_info;
+
+    my @parts = @{$options{parts}};
+
+    my $LayoutOfLayouts;
+
+    my $i = 0;
+
+    for my $rh_part (@parts) {
+        $i++;
+        
+        # gather information about images in the current part
+        my $rh_sources_info = $self->_ensure_sources_info(%$rh_part);
+
+        # keep composing the global sources_info structure
+        # as we find new images... we will need this later
+        # when we actually write the image.
+        for my $key (keys %$rh_sources_info) {
+            $global_sources_info{$key} = $rh_sources_info->{$key};
+        }
+
+        if (!defined $LayoutOfLayouts) {
+            # we keep the first layout
+            $LayoutOfLayouts = $self->_ensure_layout(%$rh_part,
+                rh_sources_info => $rh_sources_info
+            );
+        }
+        else {
+            # tweak the $rh_sources_info to include a new
+            # fake image (the previously created layout)
+            my $max_id = max keys %$rh_sources_info;
+            my $fake_img_id = $self->_get_image_id();
+            $rh_sources_info->{$fake_img_id} = {
+                name => 'FakeImage' . $i,
+                pathname => "/fake/path_$i",
+                parentdir => "/fake",
+                width => $LayoutOfLayouts->width,
+                height => $LayoutOfLayouts->height,
+                first_pixel_x => 0,
+                first_pixel_y => 0,
+            };
+
+            # we merge down this layout with the first
+            # one, but first we must fix it, as it may
+            # have been moved during this second
+            # iteration.
+            my $Layout = $self->_ensure_layout(%$rh_part,
+                rh_sources_info => $rh_sources_info
+            );
+
+            # where was LayoutOfLayout positioned?
+            my ($lol_x, $lol_y) = $Layout->get_item_coord($fake_img_id);
+
+            # fix previous layout
+            $LayoutOfLayouts->move_items($lol_x, $lol_y);
+
+            # now remove it from $Layout and merge down!
+            $Layout->delete_item($fake_img_id);
+            $LayoutOfLayouts->merge_with($Layout);
+
+            # fix the width that doesn't get updated with
+            # the new layout...
+            $LayoutOfLayouts->{width} = $Layout->width();
+            $LayoutOfLayouts->{height} = $Layout->height();
+        }
+    }
+
+    # draw it all!
+    return $self->_write_image(%options,
+        Layout => $LayoutOfLayouts,
+        rh_sources_info => \%global_sources_info
+    );
+}
+
 
 =head2 _generate_color_histogram
 

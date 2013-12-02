@@ -117,6 +117,31 @@ sub move_items {
     }
 }
 
+=head2 delete_item
+
+Deletes the item with the specified id from the internal list of items that
+have been layed out. 
+
+WARNING - this doesn't trigger a re-layout: will result in having a hole in
+the current layout. Be aware of it.
+
+Triggers a warning if the element with the specified id doesn't exist in
+the current layout.
+
+=cut
+
+sub delete_item {
+    my $self = shift;
+    my $item_id = shift;
+
+    if (!exists $self->{items}{$item_id}) {
+        warn "the item with id \"$item_id\" you are trying to delete doesn't exist in the current layout";
+        return;
+    }
+    delete $self->{items}{$item_id};
+    return;
+}
+
 =head2 merge_with
 
 Merges the current layout with the one specified. For a successful merge to
@@ -133,8 +158,8 @@ sub merge_with {
         my ($x, $y) = $Layout->get_item_coord($id);
 
         # check that the id doesn't exist
-        if (exists $self->{items}{id}) {
-            warn "the id $id already exists in the target layout!" 
+        if (exists $self->{items}{$id}) {
+            warn "the id $id already exists in the target layout!";
         }
         
         # merge
