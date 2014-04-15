@@ -3,29 +3,29 @@ require 5.006;
 use ExtUtils::MakeMaker;
 WriteMakefile
 (
-  'PL_FILES' => {},
-  'INSTALLDIRS' => 'site',
   'NAME' => 'CSS::SpriteMaker',
-  'EXE_FILES' => [],
   'VERSION_FROM' => 'lib/CSS/SpriteMaker.pm',
   'PREREQ_PM' => {
                    'Config::Simple' => 0,
-                   'File::Spec' => 0,
-                   'File::Touch' => 0,
-                   'Test::Pod' => 0,
-                   'File::Find' => 0,
-                   'File::Path' => 0,
-                   'Module::Pluggable' => 0,
-                   'Getopt::Long' => 0,
-                   'File::Find::Rule' => 0,
-                   'Test::Pod::Coverage' => 0,
-                   'Test::File' => '1.33',
-                   'Image::Magick' => 0,
-                   'Test::More' => 0,
-                   'File::Temp' => 0,
+                   'Cwd' => 0,
                    'File::Basename' => 0,
+                   'File::Find' => 0,
+                   'File::Find::Rule' => 0,
+                   'File::Path' => 0,
+                   'File::Spec' => 0,
+                   'File::Temp' => 0,
+                   'File::Touch' => 0,
+                   'Getopt::Long' => 0,
+                   'Image::Magick' => 0,
+                   'Module::Pluggable' => 0,
                    'Test::CheckManifest' => 0,
-                   'Cwd' => 0
-                 }
+                   'Test::File' => '1.33',
+                   'Test::More' => 0,
+                   'Test::Pod' => 0,
+                   'Test::Pod::Coverage' => 0
+                 },
+  'INSTALLDIRS' => 'site',
+  'EXE_FILES' => [],
+  'PL_FILES' => {}
 )
 ;
