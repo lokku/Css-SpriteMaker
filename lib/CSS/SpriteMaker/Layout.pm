@@ -3,7 +3,8 @@ package CSS::SpriteMaker::Layout;
 use strict;
 use warnings;
 
-use List::Util qw(max);
+use List::Util qw(max min);
+use POSIX qw(ceil);
 
 =head1 NAME
 
@@ -182,6 +183,189 @@ sub get_item_ids {
     return keys %{$self->{items}};
 }
 
+=head2 get_layout_ascii_string
+
+Returns the current layout in an ascii string suitable for console printing.
+
+Optionally takes width and height of the canvas in px if the canvas is to be
+reduced to a specific dimension in pixels.
+
+    my $ascii_string = $Layout->get_layout_ascii_string();
+
+OR
+    
+    my $ascii_string = $Layout->get_layout_ascii_string({
+        canvas_width => 80,
+        canvas_height => 60,
+        rh_item_info => {
+            '<item_id>' => {
+                width => <integer>,
+                height => <integer>,
+            },
+            ...
+        }
+    });
+
+NOTE: the $Layout->finalize() method should've been called prior calling this
+method.
+
+=cut
+
+sub get_layout_ascii_string {
+    my $self = shift;
+    my $rh_options = shift;
+
+    die "finalize() was not called on this layout class!" if !$self->{_layout_ran};
+
+    my %canvas;
+    my %ids;
+
+    # find max id and min id
+    my @item_ids = $self->get_item_ids;
+    my $max_item_id = max(@item_ids);
+    my $min_item_id = min(@item_ids);
+
+    # find canvas size
+    my $remap_x = 0;
+    my $remap_y = 0;
+
+    my ($original_width, $original_height);
+    if (my $rh_info = $rh_options->{rh_item_info}) {
+        $original_width = (max map { 
+            my ($x, undef) = $self->get_item_coord($_); 
+            $x + $rh_info->{$_}{width}
+        } @item_ids);
+
+        $original_height = (max map { 
+            my (undef, $y) = $self->get_item_coord($_); 
+            $y + $rh_info->{$_}{height}
+        } @item_ids);
+    }
+    else {
+        $original_height = 1 + (max map { my ($x, $y) = $self->get_item_coord($_); $x } @item_ids);
+        $original_width  = 1 + (max map { my ($x, $y) = $self->get_item_coord($_); $y } @item_ids);
+    }
+
+    my $canvas_width;
+    my $canvas_height;
+
+    if (exists $rh_options->{canvas_width}) {
+        $canvas_width = $rh_options->{canvas_width};
+        $remap_x = 1;
+    }
+    else {
+        $canvas_width = $original_width;
+    }
+
+    if (exists $rh_options->{canvas_height}) {
+        $canvas_height = $rh_options->{canvas_height};
+        $remap_y = 1;
+    }
+    else {
+        $canvas_height = $original_height;
+    }
+
+    my $rc_x = sub { 
+        my $x = shift; 
+        $x = ceil(($x * ($canvas_width - 1))  / $original_width) if $remap_x;
+        return $x;
+    };
+    my $rc_y = sub { 
+        my $y = shift; 
+        $y = ceil(($y * ($canvas_height - 1)) / $original_height) if $remap_y;
+        return $y;
+    };
+
+    # now draw each pixel in the canvas
+    for my $id (@item_ids) {
+        my ($x, $y) = $self->get_item_coord($id);
+
+        # remap start points
+        $x = $rc_x->($x);
+        $y = $rc_y->($y);
+
+        # remap end points if provided
+        if (my $rh_info = $rh_options->{rh_item_info}) {
+            my $w = $rc_x->($rh_info->{$id}{width});
+            my $h = $rc_y->($rh_info->{$id}{height});
+
+            my $end_x = $x + $w - 1;
+            my $end_y = $y + $h - 1;
+
+            # fill box
+            for my $y_pt ($y .. $end_y) {
+                for my $x_pt ($x .. $end_x) {
+                    $canvas{$x_pt}{$y_pt} = '+';
+                }
+            }
+
+            # plot the other 3 corners
+            $canvas{$end_x}{$end_y} = 'o';
+        }
+        # plot the top left corner
+        $canvas{$x}{$y} = '.';
+
+        $ids{$x}{$y} //= [];
+        push @{$ids{$x}{$y}}, $id;
+    }
+
+    # now write the canvas into chars
+    my $skip_pixels = 0;
+    my @ascii_chars;
+    for my $y (0 .. $canvas_height - 1) {
+
+        if ($skip_pixels) {
+            $skip_pixels--;
+        }
+        else {
+            push @ascii_chars, "|";
+        }
+
+        for my $x (0 .. $canvas_width - 1) {
+
+            # write the position first
+            if (exists $canvas{$x} && exists $canvas{$x}{$y}) {
+
+                if ($canvas{$x}{$y} eq '.') {
+                    push @ascii_chars, $canvas{$x}{$y};
+
+                    # now append the label and skip the same amount of pixel,
+                    my $label = join "+", @{$ids{$x}{$y}};
+                    $skip_pixels += (length $label);
+
+                    push @ascii_chars, (split "", $label);
+                }
+                else {
+                    if ($skip_pixels) {
+                        $skip_pixels--;
+                    }
+                    else {
+                        push @ascii_chars, $canvas{$x}{$y};
+                    }
+                }
+            }
+            else {
+
+                if ($skip_pixels) {
+                    $skip_pixels--;
+                }
+                else {
+                    push @ascii_chars, ' ';
+                }
+            }
+        }
+        if ($skip_pixels) {
+            $skip_pixels--;
+        }
+        else {
+            push @ascii_chars, "|";
+        }
+        push @ascii_chars, "\n";
+    }
+
+    return join('', @ascii_chars);
+}
+
 =head2 width
 
 Returns the width of the overall layout in pixels.
@@ -234,6 +418,5 @@ sub finalize {
     $self->{_layout_ran} = 1;
     return;
 }
-
 
 1;
