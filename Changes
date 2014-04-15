@@ -1,5 +1,10 @@
 Revision history for Perl module CSS::SpriteMaker
 
+0.08    Tue Apr 15 17:07:53 CEST 2014
+        * partial source padding feature: specify remove_source_padding => 1 in
+          in CSS::Spritemaker::compose_sprite parts to remove padding from
+          certain parts of the combines sprite only.
+
 0.07    2013-09-15 18:44:14 BST
         * allow custom target image filename in CSS stylesheet generation
         * allow override of the generated CSS class name (e.g., add a prefix)
