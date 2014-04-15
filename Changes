@@ -4,6 +4,8 @@ Revision history for Perl module CSS::SpriteMaker
         * partial source padding feature: specify remove_source_padding => 1 in
           in CSS::Spritemaker::compose_sprite parts to remove padding from
           certain parts of the combines sprite only.
+        * new method to display layout in ascii format (see
+          CSS::SpriteMaker::Layout)
 
 0.07    2013-09-15 18:44:14 BST
         * allow custom target image filename in CSS stylesheet generation
