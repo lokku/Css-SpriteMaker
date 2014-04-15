@@ -201,7 +201,8 @@ my $is_error = $SpriteMaker->compose_sprite (
           layout => { 
               name => 'DirectoryBased',
           }
-          include_in_css => 0, # optional
+          include_in_css => 0,        # optional
+          remove_source_padding => 1, # optional (defaults to 0)
         },
     ],
     # arrange the previous two layout using a glue layout
