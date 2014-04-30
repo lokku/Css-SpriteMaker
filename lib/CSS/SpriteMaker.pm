@@ -192,28 +192,28 @@ Compose many sprite layouts into one sprite. This is done by applying
 individual layout separately, then merging the final result together using a
 glue layout.
 
-my $is_error = $SpriteMaker->compose_sprite (
-    parts => [
-        { source_images => ['some/file.png', 'path/to/some_directory'],
-          layout_name => 'Packed',
-        },
-        { source_images => ['path/to/some_directory'],
-          layout => { 
-              name => 'DirectoryBased',
-          }
-          include_in_css => 0,        # optional
-          remove_source_padding => 1, # optional (defaults to 0)
-        },
-    ],
-    # arrange the previous two layout using a glue layout
-    layout => {
-        name => 'FixedDimension',
-        dimension => 'horizontal',
-        n => 2
-    }
-    target_file => 'sample_sprite.png',
-    format => 'png8', # optional, default is png
-);
+    my $is_error = $SpriteMaker->compose_sprite (
+        parts => [
+            { source_images => ['some/file.png', 'path/to/some_directory'],
+              layout_name => 'Packed',
+            },
+            { source_images => ['path/to/some_directory'],
+              layout => { 
+                  name => 'DirectoryBased',
+              }
+              include_in_css => 0,        # optional
+              remove_source_padding => 1, # optional (defaults to 0)
+            },
+        ],
+        # arrange the previous two layout using a glue layout
+        layout => {
+            name => 'FixedDimension',
+            dimension => 'horizontal',
+            n => 2
+        }
+        target_file => 'sample_sprite.png',
+        format => 'png8', # optional, default is png
+    );
 
 Note the optional include_in_css option, which allows to exclude a group of
 images from the CSS (still including them in the resulting image).
@@ -237,14 +237,14 @@ sub compose_sprite {
 Creates the sprite file out of the specifed image files or directories, and
 according to the given layout name.
 
-my $is_error = $SpriteMaker->make_sprite(
-    source_images => ['some/file.png', path/to/some_directory],
-    target_file => 'sample_sprite.png',
-    layout_name => 'Packed',
+    my $is_error = $SpriteMaker->make_sprite(
+        source_images => ['some/file.png', path/to/some_directory],
+        target_file => 'sample_sprite.png',
+        layout_name => 'Packed',
 
-    # all imagemagick supported formats
-    format => 'png8', # optional, default is png
-);
+        # all imagemagick supported formats
+        format => 'png8', # optional, default is png
+    );
 
 returns true if an error occurred during the procedure.
 
