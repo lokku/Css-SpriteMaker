@@ -159,8 +159,10 @@ sub new {
     $opts{verbose}               //= 0;
     $opts{format}                //= 'png';
     $opts{layout_name}           //= 'Packed';
+    $opts{css_class_prefix}      //= '';
     
     my $self = {
+        css_class_prefix => $opts{css_class_prefix},
         source_images => $opts{source_images},
         source_dir => $opts{source_dir},
         target_file => $opts{target_file},
@@ -805,6 +807,11 @@ sub _generate_css_class_name {
     # remove initial dashes if any
     $css_class =~ s/\A-+//g;
 
+    # add prefix if it was requested
+    if (defined $self->{css_class_prefix}) {
+        $css_class = $self->{css_class_prefix} . $css_class;
+    }
+
     # allow change (e.g., add prefix)
     if (defined $rc_override_classname) {
         $css_class = $rc_override_classname->($css_class);
@@ -931,6 +938,7 @@ Parameters in %options (see code) that allow us to obtain a $Layout object are:
 
 - layout: a CSS::SpriteMaker::Layout object already;
 - layout: can also be a hashref like 
+
     {
         name => 'LayoutName',
         options => {
@@ -938,6 +946,7 @@ Parameters in %options (see code) that allow us to obtain a $Layout object are:
             ...
         }
     }
+
 - layout_name: the name of a CSS::SpriteMaker::Layout object.
 
 If none of the above parameters have been found in input options, the cache is
