@@ -36,14 +36,25 @@ our $VERSION = '0.08';
     my $SpriteMaker = CSS::SpriteMaker->new(
         verbose => 1, # optional
 
-        # if provided will replace the default way of creating css classnames
-        # out of image filenames.
+        #
+        # Options that impact the lifecycle of css class name generation
+        #
+        # if provided will replace the default logic for creating css classnames
+        # out of image filenames. This filename-to-classname is the FIRST step
+        # of css classnames creation. It's safe to return invalid css characters
+        # in this subroutine. They will be cleaned up internally.
         #
         rc_filename_to_classname => sub { my $filename = shift; ... } # optional
 
-        # this callback gets called after the css class name for an image is
-        # generated. It is the latest possible moment at which you can modify
-        # the resulting css class name (e.g., add a prefix to it).
+        # ... cleaning stage happens (all non css safe characters are removed)
+
+        # This adds a prefix to all the css class names. This is called after
+        # the cleaning stage internally. Don't mess with invalid CSS characters!
+        #
+        css_class_prefix => 'myicon-',
+
+        # This is the last step. Change here whatever part of the final css
+        # class name.
         #
         rc_override_classname => sub { my $css_class = shift; ... } # optional
     );
@@ -126,6 +137,8 @@ The object can be initialised as follows:
     
     my $SpriteMaker = CSS::SpriteMaker->new({
         rc_filename_to_classname => sub { my $filename = shift; ... }, # optional
+        css_class_prefix => 'myicon-',                              # optional
+        rc_override_classname => sub { my $css_class = shift; ... } # optional
         source_dir => '/tmp/test/images',       # optional
         target_file => '/tmp/test/mysprite.png' # optional
         remove_source_padding => 1, # optional
@@ -140,7 +153,9 @@ Default values are set to:
 
 =item verbose : false,
 
-=item format  : png
+=item format  : png,
+
+=item css_class_prefix : ''
 
 =back
 
@@ -663,14 +678,14 @@ each image file.
 
 The returned arrayref looks like:
 
-[   # pathnames of the first image to follow
-    {
-        name => 'image.png',
-        pathname => '/complete/path/to/image.png',
-        parentdir => '/complete/path/to',
-    },
-    ...
-]
+    [   # pathnames of the first image to follow
+        {
+            name => 'image.png',
+            pathname => '/complete/path/to/image.png',
+            parentdir => '/complete/path/to',
+        },
+        ...
+    ]
 
 Dies if the given directory is empty or doesn't exist.
 
