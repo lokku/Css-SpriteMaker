@@ -4,7 +4,6 @@ use strict;
 use warnings;
 
 use List::Util qw(max min);
-use POSIX qw(ceil);
 
 =head1 NAME
 
@@ -21,7 +20,7 @@ Version 0.02
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 =head2 _layout_items
 
@@ -267,12 +266,23 @@ sub get_layout_ascii_string {
 
     my $rc_x = sub { 
         my $x = shift; 
-        $x = ceil(($x * ($canvas_width - 1))  / $original_width) if $remap_x;
+
+        if ($remap_x) {
+            $x = ($x * ($canvas_width - 1)) / $original_width;
+            # round
+            $x = int($x + ($x < 0 ? -0.5 : 0.5));
+        }
+
         return $x;
     };
     my $rc_y = sub { 
         my $y = shift; 
-        $y = ceil(($y * ($canvas_height - 1)) / $original_height) if $remap_y;
+        if ($remap_y) {
+
+            $y = ($y * ($canvas_height - 1)) / $original_height;
+            # round
+            $y = int($y + ($y < 0 ? -0.5 : 0.5));
+        }
         return $y;
     };
 
