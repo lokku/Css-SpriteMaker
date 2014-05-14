@@ -209,7 +209,7 @@ sub new {
         rc_override_classname => $opts{rc_override_classname},
 
         # the maximum color value
-        color_max => 2 ** Image::Magick->QuantumDepth - 1,
+        color_max => 2 ** Image::Magick::QuantumDepth - 1,
     };
 
     return bless $self, $class;
