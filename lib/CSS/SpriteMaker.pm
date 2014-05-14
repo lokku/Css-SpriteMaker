@@ -117,6 +117,18 @@ OR
 
     $SpriteMaker->print_html();
 
+ALTERNATIVELY
+
+you can generate a fake CSS only containing the original images...
+
+    my $SpriteMakerOnlyCss = CSS::SpriteMaker->new();
+
+    $SpriteMakerOnlyCss->print_fake_css(
+        filename => 'some/fake_style.css',
+        source_dir => 'sample_icons'
+    );
+
+
 
 =head1 DESCRIPTION
 
@@ -316,7 +328,7 @@ OR
     );
 
 Optionally you can provide the name of the image file that should be included in
-the CSS file:
+the CSS file instead of the default one:
 
     # within the style.css file, override the default path to the sprite image
     # with "custom/path/to/sprite.png".
@@ -325,6 +337,7 @@ the CSS file:
        filename => 'relative/path/to/style.css',
        sprite_filename => 'custom/path/to/sprite.png', # optional
     );
+
 
 NOTE: make_sprite() must be called before this method is called.
 
@@ -347,7 +360,55 @@ sub print_css {
     if (exists $options{sprite_filename} && $options{sprite_filename}) {
         $target_image_filename = $options{sprite_filename};
     }
-    my $stylesheet = $self->_get_stylesheet_string($target_image_filename);
+
+    my $stylesheet = $self->_get_stylesheet_string({
+            target_image_filename => $target_image_filename,
+            use_full_images => 0
+        },
+        %options
+    );
+
+    print $fh $stylesheet;
+
+    return 0;
+}
+
+=head2 print_fake_css
+
+Fake a css spritesheet by generating a stylesheet containing just the original
+images (not the ones coming from the sprite!)
+
+    # within the style.css file, override the default path to the sprite image
+    # with "custom/path/to/sprite.png".
+    #
+    $SpriteMaker->print_css(
+       filename => 'relative/path/to/style.css',
+
+    );
+
+NOTE: unlike print_css you don't need to call this method after make_sprite.
+
+=cut
+
+sub print_fake_css {
+    my $self     = shift;
+    my %options  = @_;
+    
+    my $rh_sources_info = $self->_ensure_sources_info(%options);
+
+    my $fh = $self->_ensure_filehandle_write(%options);
+
+    $self->_verbose("  * writing fake css file");
+
+    if (exists $options{sprite_filename}) {
+        die "the sprite_filename option is incompatible with fake_css. In this mode the original images are used in the spritesheet"; 
+    }
+
+    my $stylesheet = $self->_get_stylesheet_string({
+            use_full_images => 1
+        },
+        %options
+    );
 
     print $fh $stylesheet;
 
@@ -383,7 +444,7 @@ sub print_html {
     
     $self->_verbose("  * writing html sample page");
 
-    my $stylesheet = $self->_get_stylesheet_string();
+    my $stylesheet = $self->_get_stylesheet_string({}, %options);
 
     print $fh '<html><head><style type="text/css">';
     print $fh $stylesheet;
@@ -735,9 +796,21 @@ Returns the stylesheet in a string.
 
 sub _get_stylesheet_string {
     my $self = shift;
-    my $target_image_filename = shift // $self->{_cache_target_image_file};
+    my $rh_opts = shift // {};
+    my %options = @_;
 
-    my $rah_cssinfo = $self->get_css_info_structure(); 
+    # defaults
+    my $target_image_filename = $self->{_cache_target_image_file};
+    if (exists $rh_opts->{target_image_filename} && defined $rh_opts->{target_image_filename}) {
+        $target_image_filename = $rh_opts->{target_image_filename};
+    }
+
+    my $use_full_images = 0;
+    if (exists $rh_opts->{use_full_images} && defined $rh_opts->{use_full_images}) {
+        $use_full_images = $rh_opts->{use_full_images};
+    }
+
+    my $rah_cssinfo = $self->get_css_info_structure(%options); 
 
     my @classes = map { "." . $_->{css_class} } 
         grep { defined $_->{css_class} }
@@ -745,24 +818,42 @@ sub _get_stylesheet_string {
 
     my @stylesheet;
 
-    # write header
-    # header associates the sprite image to each class
-    push @stylesheet, sprintf(
-        "%s { background-image: url('%s'); background-repeat: no-repeat; }",
-        join(",", @classes),
-        $target_image_filename
-    );
+    if ($use_full_images) {
+        ##
+        ## use full images instead of the ones from the sprite
+        ##
+        for my $rh_info (@$rah_cssinfo) {
+            if (defined $rh_info->{css_class}) {
+                push @stylesheet, sprintf(
+                    ".%s { url('%s'); width: %spx; height: %spx; }",
+                    $rh_info->{css_class}, 
+                    $rh_info->{full_path},
+                    $rh_info->{width},
+                    $rh_info->{height},
+                );
+            }
+        }
+    }
+    else {
+        # write header
+        # header associates the sprite image to each class
+        push @stylesheet, sprintf(
+            "%s { background-image: url('%s'); background-repeat: no-repeat; }",
+            join(",", @classes),
+            $target_image_filename
+        );
 
-    for my $rh_info (@$rah_cssinfo) {
-        if (defined $rh_info->{css_class}) {
-            push @stylesheet, sprintf(
-                ".%s { background-position: %spx %spx; width: %spx; height: %spx; }",
-                $rh_info->{css_class}, 
-                -1 * $rh_info->{x},
-                -1 * $rh_info->{y},
-                $rh_info->{width},
-                $rh_info->{height},
-            );
+        for my $rh_info (@$rah_cssinfo) {
+            if (defined $rh_info->{css_class}) {
+                push @stylesheet, sprintf(
+                    ".%s { background-position: %spx %spx; width: %spx; height: %spx; }",
+                    $rh_info->{css_class}, 
+                    -1 * $rh_info->{x},
+                    -1 * $rh_info->{y},
+                    $rh_info->{width},
+                    $rh_info->{height},
+                );
+            }
         }
     }
 
