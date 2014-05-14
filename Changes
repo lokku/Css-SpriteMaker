@@ -1,5 +1,9 @@
 Revision history for Perl module CSS::SpriteMaker
 
+0.10    Wed May 14 22:57:32 CEST 2014
+        * generate fake CSS stylesheets
+        * added rounding in get_layout_ascii_string (to have more precise layouts)
+
 0.09    Wed May 14 00:54:56 CEST 2014
         * move author tests in xt/
         * add css_class_prefix option

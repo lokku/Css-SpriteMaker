@@ -1,7 +1,7 @@
 CSS-SpriteMaker
 
 
-This archive contains the distribution CSS-SpriteMaker, version 0.09:
+This archive contains the distribution CSS-SpriteMaker, version 0.10:
 
     CSS::SpriteMaker provides methods to combine several images into a single
     sprite, mainly for web optimization.
@@ -39,7 +39,7 @@ You can also look for information at:
 
 LICENSE AND COPYRIGHT
 
-This software is copyright (c) 2012 by Lokku Ltd..
+This software is copyright (c) 2014 by Lokku Ltd..
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.

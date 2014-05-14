@@ -24,11 +24,8 @@
             "File::Spec" : 0,
             "File::Temp" : 0,
             "File::Touch" : 0,
-            "Test::CheckManifest" : 0,
             "Test::File" : "1.33",
             "Test::More" : 0,
-            "Test::Pod" : 0,
-            "Test::Pod::Coverage" : 0
          }
       },
       "configure" : {
@@ -49,11 +46,11 @@
    "provides" : {
       "CSS::SpriteMaker" : {
          "file" : "lib/CSS/SpriteMaker.pm",
-         "version" : "0.09"
+         "version" : "0.10"
       },
       "CSS::SpriteMaker::Layout" : {
          "file" : "lib/CSS/SpriteMaker/Layout.pm",
-         "version" : "0.02"
+         "version" : "0.03"
       },
       "CSS::SpriteMaker::Layout::DirectoryBased" : {
          "file" : "lib/CSS/SpriteMaker/Layout/DirectoryBased.pm",
@@ -78,5 +75,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "0.09"
+   "version" : "0.10"
 }
