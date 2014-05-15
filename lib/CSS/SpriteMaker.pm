@@ -378,12 +378,12 @@ sub print_css {
 Fake a css spritesheet by generating a stylesheet containing just the original
 images (not the ones coming from the sprite!)
 
-    # within the style.css file, override the default path to the sprite image
-    # with "custom/path/to/sprite.png".
-    #
-    $SpriteMaker->print_css(
-       filename => 'relative/path/to/style.css',
-
+    $SpriteMaker->print_fake_css(
+       filename        => 'relative/path/to/style.css',
+       fix_image_path => {
+           find: '/some/absolute/path',  # a Perl regexp 
+           replace: 'some/relative/path'
+       }
     );
 
 NOTE: unlike print_css you don't need to call this method after make_sprite.
@@ -819,15 +819,33 @@ sub _get_stylesheet_string {
     my @stylesheet;
 
     if ($use_full_images) {
+        my ($f, $r);
+        my $is_path_to_be_fixed = 0;
+        if (exists $options{fix_image_path} && 
+            exists $options{fix_image_path}{find} && 
+            exists $options{fix_image_path}{replace}) {
+
+            $is_path_to_be_fixed = 1;
+            $f = qr/$options{fix_image_path}{find}/;
+            $r = $options{fix_image_path}{replace};
+        }
+
         ##
         ## use full images instead of the ones from the sprite
         ##
         for my $rh_info (@$rah_cssinfo) {
+
+            # fix the path (maybe)
+            my $path = $rh_info->{full_path};
+            if ($is_path_to_be_fixed) {
+                $path =~ s/$f/$r/;
+            }
+
             if (defined $rh_info->{css_class}) {
                 push @stylesheet, sprintf(
-                    ".%s { url('%s'); width: %spx; height: %spx; }",
+                    ".%s { background-image: url('%s'); width: %spx; height: %spx; }",
                     $rh_info->{css_class}, 
-                    $rh_info->{full_path},
+                    $path,
                     $rh_info->{width},
                     $rh_info->{height},
                 );
