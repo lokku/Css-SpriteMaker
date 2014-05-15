@@ -24,7 +24,6 @@
             "File::Spec" : 0,
             "File::Temp" : 0,
             "File::Touch" : 0,
-            "Test::CheckManifest" : 0,
             "Test::File" : "1.33",
             "Test::More" : 0,
          }
@@ -47,7 +46,7 @@
    "provides" : {
       "CSS::SpriteMaker" : {
          "file" : "lib/CSS/SpriteMaker.pm",
-         "version" : "0.12"
+         "version" : "0.13"
       },
       "CSS::SpriteMaker::Layout" : {
          "file" : "lib/CSS/SpriteMaker/Layout.pm",
@@ -76,5 +75,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "0.12"
+   "version" : "0.13"
 }

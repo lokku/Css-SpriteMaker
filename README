@@ -1,7 +1,7 @@
 CSS-SpriteMaker
 
 
-This archive contains the distribution CSS-SpriteMaker, version 0.12:
+This archive contains the distribution CSS-SpriteMaker, version 0.13:
 
     CSS::SpriteMaker provides methods to combine several images into a single
     sprite, mainly for web optimization.
