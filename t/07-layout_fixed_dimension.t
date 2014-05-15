@@ -24,8 +24,6 @@ my $Layout = $SpriteMaker->_ensure_layout(
 );
 
 my $ascii_string = $Layout->get_layout_ascii_string({
-    canvas_width => 100,
-    canvas_height => 80,
     rh_item_info => $rh_source_info
 });
 
