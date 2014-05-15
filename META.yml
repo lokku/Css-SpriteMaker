@@ -28,7 +28,7 @@ name: CSS-SpriteMaker
 provides:
   CSS::SpriteMaker:
     file: lib/CSS/SpriteMaker.pm
-    version: 0.11
+    version: 0.12
   CSS::SpriteMaker::Layout:
     file: lib/CSS/SpriteMaker/Layout.pm
     version: 0.03
@@ -52,4 +52,4 @@ requires:
   perl: 5.006
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.11
+version: 0.12

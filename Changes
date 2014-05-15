@@ -1,5 +1,8 @@
 Revision history for Perl module CSS::SpriteMaker
 
+0.12    Thu May 15 11:07:46 CEST 2014
+        * Avoid error in load test for certain other versions of ImageMagick
+
 0.11    Thu May 15 10:57:27 CEST 2014
         * Avoid error in load test for certain versions of ImageMagick
 
