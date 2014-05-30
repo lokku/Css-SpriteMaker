@@ -64,6 +64,7 @@ our $VERSION = '0.13';
         target_file => '/tmp/test/mysprite.png',
         layout_name => 'Packed',    # optional
         remove_source_padding => 1, # optional
+        add_extra_padding => 31,    # optional +31px padding around all images
         format => 'png8',           # optional
     );
 
@@ -91,7 +92,8 @@ OR
     $SpriteMaker->compose_sprite(
         parts => [
             { source_dir => 'sample_icons',
-              layout_name => 'Packed' 
+              layout_name => 'Packed',
+              add_extra_padding => 32       # just add extra padding in one part
             },
             { source_dir => 'more_icons',
                 layout => {
@@ -129,7 +131,6 @@ you can generate a fake CSS only containing the original images...
     );
 
 
-
 =head1 DESCRIPTION
 
 A CSS Sprite is an image obtained by arranging many smaller images on a 2D
@@ -149,12 +150,13 @@ The object can be initialised as follows:
     
     my $SpriteMaker = CSS::SpriteMaker->new({
         rc_filename_to_classname => sub { my $filename = shift; ... }, # optional
-        css_class_prefix => 'myicon-',                              # optional
-        rc_override_classname => sub { my $css_class = shift; ... } # optional
+        css_class_prefix      => 'myicon-',                            # optional
+        rc_override_classname => sub { my $css_class = shift; ... }    # optional
         source_dir => '/tmp/test/images',       # optional
         target_file => '/tmp/test/mysprite.png' # optional
-        remove_source_padding => 1, # optional
-        verbose => 1,               # optional
+        remove_source_padding => 1,             # optional
+        add_extra_padding     => 1,             # optional
+        verbose => 1,                           # optional
     });
     
 Default values are set to:
@@ -171,18 +173,19 @@ Default values are set to:
 
 =back
 
-The parameter rc_filename_to_classname is a code reference to a function that allow to customize the way class names are generated. This function should take one parameter as input and return a class name
-
-
-    
+The parameter rc_filename_to_classname is a code reference to a function that
+allow to customize the way class names are generated. This function should take
+one parameter as input and return a class name
 
 =cut
+
 sub new {
     my $class  = shift;
     my %opts   = @_;
 
     # defaults
     $opts{remove_source_padding} //= 0;
+    $opts{add_extra_padding}    //= 0;
     $opts{verbose}               //= 0;
     $opts{format}                //= 'png';
     $opts{layout_name}           //= 'Packed';
@@ -196,6 +199,7 @@ sub new {
         is_verbose => $opts{verbose},
         format => $opts{format},
         remove_source_padding => $opts{remove_source_padding},
+        add_extra_padding => $opts{add_extra_padding},
         output_css_file => $opts{output_css_file},
         output_html_file => $opts{output_html_file},
 
@@ -232,6 +236,7 @@ glue layout.
               }
               include_in_css => 0,        # optional
               remove_source_padding => 1, # optional (defaults to 0)
+              add_extra_padding     => 40, # optional, px (defaults to 0px)
             },
         ],
         # arrange the previous two layout using a glue layout
@@ -494,8 +499,8 @@ EOCSS
         $css_class =~ s/[.]//;
 
         my $is_included = $rh_source_info->{include_in_css};
-        my $width = $rh_source_info->{width};
-        my $height = $rh_source_info->{height};
+        my $width = $rh_source_info->{original_width};
+        my $height = $rh_source_info->{original_height};
 
         my $onclick = <<EONCLICK;
     if (typeof current !== 'undefined' && current !== this) {
@@ -606,11 +611,11 @@ sub get_css_info_structure {
 
         push @css_info, {
             full_path => $rh_source_info->{pathname},
-            x => $x,
-            y => $y,
+            x => $x + $rh_source_info->{add_extra_padding},
+            y => $y + $rh_source_info->{add_extra_padding},
             css_class => $css_class,
-            width => $rh_source_info->{width},
-            height => $rh_source_info->{height},
+            width => $rh_source_info->{original_width},
+            height => $rh_source_info->{original_height},
         };
     }
 
@@ -687,6 +692,7 @@ sub _image_locations_to_source_info {
     my $self         = shift;
     my $ra_locations = shift;
     my $remove_source_padding = shift;
+    my $add_extra_padding = shift;
     my $include_in_css = shift // 1;
 
     my %source_info;
@@ -700,10 +706,14 @@ sub _image_locations_to_source_info {
         my %properties = %{$self->_get_image_properties(
             $rh_location->{pathname},
             $remove_source_padding,
+            $add_extra_padding,
         )};
 
         # add whether to include this item in the css or not
         $properties{include_in_css} = $include_in_css;
+
+        # this is really for write_image, it should add padding as necessary
+        $properties{add_extra_padding} = $add_extra_padding;
 
         # skip invalid images
         next IMAGE if !%properties;
@@ -995,10 +1005,16 @@ sub _ensure_sources_info {
     ## - first check if an option is provided
     ## - otherwise default to the option in $self
     my $remove_source_padding = $self->{remove_source_padding};
+    my $add_extra_padding = $self->{add_extra_padding};
     if (exists $options{remove_source_padding} 
         && defined $options{remove_source_padding}) {
 
         $remove_source_padding = $options{remove_source_padding};
+    }
+    if (exists $options{add_extra_padding} 
+        && defined $options{add_extra_padding}) {
+
+        $add_extra_padding = $options{add_extra_padding};
     }
 
 
@@ -1032,6 +1048,7 @@ sub _ensure_sources_info {
         $rh_source_info = $self->_image_locations_to_source_info(
             \@locations,
             $remove_source_padding,
+            $add_extra_padding,
             $include_in_css
         );
     }
@@ -1246,22 +1263,43 @@ sub _write_image {
             next ITEM_ID;
         }
 
+        my $padding = $rh_source_info->{add_extra_padding};
+
         # place soure image in the target image according to the layout
+        my $transparent_p = $I->Get('transparent-color');
+
+        # the first pixel of the source image (maybe inner)
+
+        my $endx = $rh_source_info->{first_pixel_x} + $rh_source_info->{original_width};
+        my $endy = $rh_source_info->{first_pixel_y} + $rh_source_info->{original_height};
+
+        my $srcx = $rh_source_info->{first_pixel_x};
+
         my $destx = $layout_x;
-        my $startx = $rh_source_info->{first_pixel_x};
-        my $starty = $rh_source_info->{first_pixel_y};
-        for my $x ($startx .. $startx + $rh_source_info->{width} - 1) {
+
+        while ($srcx < $endx) {
+
+            my $srcy = $rh_source_info->{first_pixel_y};
             my $desty = $layout_y;
-            for my $y ($starty .. $starty + $rh_source_info->{height} - 1) {
+
+            while ($srcy < $endy) {
+
                 my $p = $I->Get(
-                    sprintf('pixel[%s,%s]', $x, $y),
+                    sprintf('pixel[%s,%s]', $srcx, $srcy),
                 );
+
                 $Target->Set(
-                    sprintf('pixel[%s,%s]', $destx, $desty), $p); 
+                    sprintf('pixel[%s,%s]', $destx + $padding, $desty + $padding), $p
+                ); 
+
+                $srcy++;
                 $desty++;
             }
+
             $destx++;
+            $srcx++;
         }
+
     }
 
     # write target image
@@ -1299,6 +1337,7 @@ sub _get_image_properties {
     my $self       = shift;
     my $image_path = shift;
     my $remove_source_padding = shift;
+    my $add_extra_padding = shift;
 
     my $Image = Image::Magick->new();
 
@@ -1391,18 +1430,36 @@ sub _get_image_properties {
         $rh_info->{height} = $first_bottom - $first_top + 1;
     }
 
+    # save the original width as it may change later
+    $rh_info->{original_width} = $rh_info->{width};
+    $rh_info->{original_height} = $rh_info->{height};
+
     # Store information about the color of each pixel
     $rh_info->{colors}{map} = {};
-    for my $x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
-        for my $y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
+    my $x = 0;
+    for my $fake_x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
+
+        my $y = 0;
+        for my $fake_y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
+
             my $color = $Image->Get(
-                sprintf('pixel[%s,%s]', $x, $y),
+                sprintf('pixel[%s,%s]', $fake_x, $fake_y),
             );
+
             push @{$rh_info->{colors}{map}{$color}}, {
                 x => $x,
                 y => $y,
             };
+
+            $y++;
         }
+    }
+
+    if ($add_extra_padding) {
+        # fix the width of the image if a padding was added, as if the image
+        # was actually wider
+        $rh_info->{width} += 2 * $add_extra_padding;
+        $rh_info->{height} += 2 * $add_extra_padding;
     }
 
     return $rh_info; 
