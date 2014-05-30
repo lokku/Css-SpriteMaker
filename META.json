@@ -46,7 +46,7 @@
    "provides" : {
       "CSS::SpriteMaker" : {
          "file" : "lib/CSS/SpriteMaker.pm",
-         "version" : "0.13"
+         "version" : "0.14"
       },
       "CSS::SpriteMaker::Layout" : {
          "file" : "lib/CSS/SpriteMaker/Layout.pm",
@@ -75,5 +75,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "0.13"
+   "version" : "0.14"
 }

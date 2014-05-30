@@ -1,5 +1,8 @@
 Revision history for Perl module CSS::SpriteMaker
 
+0.14    Fri May 30 02:12:07 CEST 2014
+        * Allow user to add arbitrary padding around sprite images
+
 0.13    Thu May 15 15:15:04 CEST 2014
         * Fix bugs in print_fake_css
         * Allow renaming of pathnames in print_fake_css
