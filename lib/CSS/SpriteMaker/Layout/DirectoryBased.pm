@@ -89,6 +89,8 @@ sub _layout_items {
         $rh_items_info->{$a}{pathname}
             cmp
         $rh_items_info->{$b}{pathname}
+
+        || $a <=> $b
     }
     keys %$rh_items_info;
     

@@ -91,6 +91,8 @@ sub _layout_items {
             $rh_items_info->{$b}{height}
                 <=>
             $rh_items_info->{$a}{height}
+
+            || $a <=> $b
         }
         keys %$rh_items_info;
 
