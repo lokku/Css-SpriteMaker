@@ -1,5 +1,8 @@
 Revision history for Perl module CSS::SpriteMaker
 
+0.15    Thu Sep 18 12:51:17 CEST 2014
+        * Make compose_sprite() consistent under Perl 5.18 hash key ordering (thanks Alex!)
+
 0.14    Fri May 30 02:12:07 CEST 2014
         * Allow user to add arbitrary padding around sprite images
 

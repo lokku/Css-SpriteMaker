@@ -46,23 +46,23 @@
    "provides" : {
       "CSS::SpriteMaker" : {
          "file" : "lib/CSS/SpriteMaker.pm",
-         "version" : "0.14"
+         "version" : "0.15"
       },
       "CSS::SpriteMaker::Layout" : {
          "file" : "lib/CSS/SpriteMaker/Layout.pm",
-         "version" : "0.03"
+         "version" : "0.04"
       },
       "CSS::SpriteMaker::Layout::DirectoryBased" : {
          "file" : "lib/CSS/SpriteMaker/Layout/DirectoryBased.pm",
-         "version" : "0.01"
+         "version" : "0.02"
       },
       "CSS::SpriteMaker::Layout::FixedDimension" : {
          "file" : "lib/CSS/SpriteMaker/Layout/FixedDimension.pm",
-         "version" : "0.01"
+         "version" : "0.02"
       },
       "CSS::SpriteMaker::Layout::Packed" : {
          "file" : "lib/CSS/SpriteMaker/Layout/Packed.pm",
-         "version" : "0.01"
+         "version" : "0.02"
       },
       "CSS::SpriteMaker::Layout::Packed::Node" : {
          "file" : "lib/CSS/SpriteMaker/Layout/Packed/Node.pm",
