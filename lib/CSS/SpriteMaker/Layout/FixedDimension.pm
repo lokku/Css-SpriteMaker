@@ -110,7 +110,7 @@ sub _layout_items {
     my $dimension_size = 0;
 
     my $i = 0;
-    for my $id (keys %$rh_items_info) {
+    for my $id (sort keys %$rh_items_info) {
         my @wh = ($rh_items_info->{$id}{width}, $rh_items_info->{$id}{height});
 
         # condition to switch to the next row

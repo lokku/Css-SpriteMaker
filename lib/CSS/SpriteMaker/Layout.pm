@@ -179,7 +179,7 @@ Returns the id of each item into an array.
 
 sub get_item_ids {
     my $self = shift;
-    return keys %{$self->{items}};
+    return sort { $a <=> $b } keys %{$self->{items}};
 }
 
 =head2 get_layout_ascii_string

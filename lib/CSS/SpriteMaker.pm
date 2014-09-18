@@ -488,7 +488,7 @@ EOCSS
     print $fh '</style></head><body><h1>CSS::SpriteMaker Image Information</h1>';
 
     # html
-    for my $id (keys %$rh_sources_info) {
+    for my $id (sort { $a <=> $b } keys %$rh_sources_info) {
         my $rh_source_info = $rh_sources_info->{$id};
         
         my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
@@ -544,13 +544,13 @@ EONCLICK
             print $fh "  <div class=\"item\" style=\"width: ${width}px; height: ${height}px;\"></div>";
         }
         print $fh "  <div class=\"item_description\">";
-        for my $key (keys %$rh_source_info) {
+        for my $key (sort keys %$rh_source_info) {
             next if $key eq "colors";
             print $fh "<b>" . $key . "</b>: " . ($rh_source_info->{$key} // 'none') . "<br />";
         }
         print $fh '<h3>Colors</h3>';
             print $fh "<b>total</b>: " . $rh_source_info->{colors}{total} . '<br />';
-            for my $colors (keys %{$rh_source_info->{colors}{map}}) {
+            for my $colors (sort keys %{$rh_source_info->{colors}{map}}) {
                 my ($r, $g, $b, $a) = split /,/, $colors;
                 my $rrgb = $r * 255 / $self->{color_max};
                 my $grgb = $g * 255 / $self->{color_max};
@@ -603,7 +603,7 @@ sub get_css_info_structure {
 
     my @css_info;
 
-    for my $id (keys %$rh_sources_info) {
+    for my $id (sort { $a <=> $b } keys %$rh_sources_info) {
         my $rh_source_info = $rh_sources_info->{$id};
         my $css_class = $rh_id_to_class->{$id};
 
@@ -640,7 +640,7 @@ sub _generate_css_class_names {
     my %id_to_class_mapping;
 
     PROCESS_SOURCEINFO:
-    for my $id (keys %$rh_source_info) {
+    for my $id (sort { $a <=> $b } keys %$rh_source_info) {
         
         next PROCESS_SOURCEINFO if !$rh_source_info->{$id}{include_in_css};
 
@@ -1244,7 +1244,7 @@ sub _write_image {
 
     # place each image according to the layout
     ITEM_ID:
-    for my $source_id (sort { $a <=> $b } $Layout->get_item_ids) {
+    for my $source_id ($Layout->get_item_ids) {
         my $rh_source_info = $rh_sources_info->{$source_id};
         my ($layout_x, $layout_y) = $Layout->get_item_coord($source_id);
 
@@ -1493,7 +1493,7 @@ sub _compose_sprite_with_glue {
     for my $rh_part (@parts) {
 
         my $rh_sources_info = $self->_ensure_sources_info(%$rh_part);
-        for my $key (keys %$rh_sources_info) {
+        for my $key (sort { $a <=> $b } keys %$rh_sources_info) {
             $global_sources_info{$key} = $rh_sources_info->{$key};
         }
 
@@ -1527,7 +1527,7 @@ sub _compose_sprite_with_glue {
     # we need to adjust the position of each element of the layout according to
     # the positions of the elements in $LayoutOfLayouts
     my $FinalLayout;
-    for my $layout_id (sort { $a <=> $b } $LayoutOfLayouts->get_item_ids()) {
+    for my $layout_id ($LayoutOfLayouts->get_item_ids()) {
         my $Layout = $layouts[$layout_id];
         my ($dx, $dy) = $LayoutOfLayouts->get_item_coord($layout_id);
         $Layout->move_items($dx, $dy);
@@ -1579,7 +1579,7 @@ sub _compose_sprite_without_glue {
         # keep composing the global sources_info structure
         # as we find new images... we will need this later
         # when we actually write the image.
-        for my $key (keys %$rh_sources_info) {
+        for my $key (sort { $a <=> $b } keys %$rh_sources_info) {
             $global_sources_info{$key} = $rh_sources_info->{$key};
         }
 
@@ -1592,7 +1592,6 @@ sub _compose_sprite_without_glue {
         else {
             # tweak the $rh_sources_info to include a new
             # fake image (the previously created layout)
-            my $max_id = max keys %$rh_sources_info;
             my $fake_img_id = $self->_get_image_id();
             $rh_sources_info->{$fake_img_id} = {
                 name => 'FakeImage' . $i,
@@ -1648,8 +1647,8 @@ sub _generate_color_histogram {
     my $rh_source_info = shift;
 
     my %histogram;
-    for my $id (keys %$rh_source_info) {
-        for my $color (keys %{ $rh_source_info->{$id}{colors}{map} }) {
+    for my $id (sort { $a <=> $b } keys %$rh_source_info) {
+        for my $color (sort keys %{ $rh_source_info->{$id}{colors}{map} }) {
             my $rah_colors_info = $rh_source_info->{$id}{colors}{map}{$color};
 
             $histogram{$color} = scalar @$rah_colors_info;

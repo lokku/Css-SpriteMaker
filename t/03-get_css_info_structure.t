@@ -167,22 +167,23 @@ my $bubble_extra_padding = 50;
 
     my $ra_structure = $SpriteMaker->get_css_info_structure();
 
-    is_deeply($ra_structure, [{
-        'css_class' => 'bubble',
-        'y' => $bubble_extra_padding,
-        'x' => $bubble_extra_padding,
-        'full_path' => 'sample_icons/bubble.png',
-        'width' => $bubble_width,
-        'height' => $bubble_height,
-    },
-    {
-        'width' => $apple_padded_width,
-        'y' => 0,
-        'css_class' => 'apple',
-        'x' => 132,
-        'full_path' => 'sample_icons/apple.png',
-        'height' => $apple_padded_height
-    }
+    is_deeply($ra_structure, [
+        {
+            'width' => $apple_padded_width,
+            'y' => 0,
+            'css_class' => 'apple',
+            'x' => 132,
+            'full_path' => 'sample_icons/apple.png',
+            'height' => $apple_padded_height
+        },
+        {
+            'css_class' => 'bubble',
+            'y' => $bubble_extra_padding,
+            'x' => $bubble_extra_padding,
+            'full_path' => 'sample_icons/bubble.png',
+            'width' => $bubble_width,
+            'height' => $bubble_height,
+        },
     ], 'only the bubble has extra padding');
 }
 
