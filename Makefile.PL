@@ -26,4 +26,14 @@ WriteMakefile(
     MIN_PERL_VERSION => 5.006,
     PREREQ_PM => \%prereqs,
     clean => { FILES => ['CSS-SpriteMaker-*'] },
+    META_MERGE          => {
+      "meta-spec" => { version => 2 },
+      resources => {
+        repository => {
+          type => 'git',
+          url => 'git@github.com:lokku/Css-SpriteMaker.git',
+          web => 'https://github.com/lokku/Css-SpriteMaker',
+        },
+      },
+    },
 );
