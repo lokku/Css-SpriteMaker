@@ -68,6 +68,7 @@ t/07-layout_fixed_dimension.t
 t/08-print_html.t
 t/09-_generate_css_class_name.t
 t/10-print_fake_css.t
+t/11-_generate_color_histogram.t
 xt/boilerplate.t
 xt/manifest.t
 xt/pod-coverage.t
