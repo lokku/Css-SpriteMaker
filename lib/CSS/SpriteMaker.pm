@@ -149,7 +149,7 @@ Create and configure a new CSS::SpriteMaker object.
 
 The object can be initialised as follows:
     
-    my $SpriteMaker = CSS::SpriteMaker->new({
+    my $SpriteMaker = CSS::SpriteMaker->new(
         rc_filename_to_classname => sub { my $filename = shift; ... }, # optional
         css_class_prefix      => 'myicon-',                            # optional
         rc_override_classname => sub { my $css_class = shift; ... }    # optional
@@ -159,7 +159,7 @@ The object can be initialised as follows:
         add_extra_padding     => 1,             # optional
         verbose => 1,                           # optional
         enable_colormap => 1,                  # optional
-    });
+    );
     
 Default values are set to:
 
