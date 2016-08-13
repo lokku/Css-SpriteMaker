@@ -64,6 +64,7 @@ our $VERSION = '0.15';
         target_file => '/tmp/test/mysprite.png',
         layout_name => 'Packed',    # optional
         remove_source_padding => 1, # optional
+        enable_colormap => 1,       # optional
         add_extra_padding => 31,    # optional +31px padding around all images
         format => 'png8',           # optional
     );
@@ -157,6 +158,7 @@ The object can be initialised as follows:
         remove_source_padding => 1,             # optional
         add_extra_padding     => 1,             # optional
         verbose => 1,                           # optional
+        enable_colormap => 1,                  # optional
     });
     
 Default values are set to:
@@ -166,6 +168,8 @@ Default values are set to:
 =item remove_source_padding : false,
 
 =item verbose : false,
+
+=item enable_colormap : false,
 
 =item format  : png,
 
@@ -190,6 +194,7 @@ sub new {
     $opts{format}                //= 'png';
     $opts{layout_name}           //= 'Packed';
     $opts{css_class_prefix}      //= '';
+    $opts{enable_colormap} //= 0;
     
     my $self = {
         css_class_prefix => $opts{css_class_prefix},
@@ -199,6 +204,7 @@ sub new {
         is_verbose => $opts{verbose},
         format => $opts{format},
         remove_source_padding => $opts{remove_source_padding},
+        enable_colormap => $opts{enable_colormap},
         add_extra_padding => $opts{add_extra_padding},
         output_css_file => $opts{output_css_file},
         output_html_file => $opts{output_html_file},
@@ -236,6 +242,7 @@ glue layout.
               }
               include_in_css => 0,        # optional
               remove_source_padding => 1, # optional (defaults to 0)
+              enable_colormap => 1, # optional (defaults to 0)
               add_extra_padding     => 40, # optional, px (defaults to 0px)
             },
         ],
@@ -490,7 +497,6 @@ EOCSS
     # html
     for my $id (sort { $a <=> $b } keys %$rh_sources_info) {
         my $rh_source_info = $rh_sources_info->{$id};
-        
         my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
         $self->_verbose(
             sprintf("%s -> %s", $rh_source_info->{name}, $css_class)
@@ -548,6 +554,7 @@ EONCLICK
             next if $key eq "colors";
             print $fh "<b>" . $key . "</b>: " . ($rh_source_info->{$key} // 'none') . "<br />";
         }
+        if (!$self->{enable_colormap}) {
         print $fh '<h3>Colors</h3>';
             print $fh "<b>total</b>: " . $rh_source_info->{colors}{total} . '<br />';
             for my $colors (sort keys %{$rh_source_info->{colors}{map}}) {
@@ -558,6 +565,7 @@ EONCLICK
                 my $argb = 255 - ($a * 255 / $self->{color_max});
                 print $fh '<div class="color" style="background-color: ' . "rgba($rrgb, $grgb, $brgb, $argb);\"></div>";
             }
+        }
         print $fh "  </div>";
         print $fh '</div>';
     }
@@ -694,6 +702,7 @@ sub _image_locations_to_source_info {
     my $remove_source_padding = shift;
     my $add_extra_padding = shift;
     my $include_in_css = shift // 1;
+    my $enable_colormap = shift;
 
     my %source_info;
     
@@ -707,6 +716,7 @@ sub _image_locations_to_source_info {
             $rh_location->{pathname},
             $remove_source_padding,
             $add_extra_padding,
+            $enable_colormap
         )};
 
         # add whether to include this item in the css or not
@@ -1006,6 +1016,7 @@ sub _ensure_sources_info {
     ## - otherwise default to the option in $self
     my $remove_source_padding = $self->{remove_source_padding};
     my $add_extra_padding = $self->{add_extra_padding};
+    my $enable_colormap = $self->{enable_colormap};
     if (exists $options{remove_source_padding} 
         && defined $options{remove_source_padding}) {
 
@@ -1016,7 +1027,11 @@ sub _ensure_sources_info {
 
         $add_extra_padding = $options{add_extra_padding};
     }
+    if (exists $options{enable_colormap}
+        && defined $options{enable_colormap}) {
 
+        $enable_colormap = $options{enable_colormap};
+    }
 
     my $rh_source_info;
 
@@ -1049,7 +1064,8 @@ sub _ensure_sources_info {
             \@locations,
             $remove_source_padding,
             $add_extra_padding,
-            $include_in_css
+            $include_in_css,
+            $enable_colormap
         );
     }
     
@@ -1265,41 +1281,9 @@ sub _write_image {
 
         my $padding = $rh_source_info->{add_extra_padding};
 
-        # place soure image in the target image according to the layout
-        my $transparent_p = $I->Get('transparent-color');
-
-        # the first pixel of the source image (maybe inner)
-
-        my $endx = $rh_source_info->{first_pixel_x} + $rh_source_info->{original_width};
-        my $endy = $rh_source_info->{first_pixel_y} + $rh_source_info->{original_height};
-
-        my $srcx = $rh_source_info->{first_pixel_x};
-
-        my $destx = $layout_x;
-
-        while ($srcx < $endx) {
-
-            my $srcy = $rh_source_info->{first_pixel_y};
-            my $desty = $layout_y;
-
-            while ($srcy < $endy) {
-
-                my $p = $I->Get(
-                    sprintf('pixel[%s,%s]', $srcx, $srcy),
-                );
-
-                $Target->Set(
-                    sprintf('pixel[%s,%s]', $destx + $padding, $desty + $padding), $p
-                ); 
-
-                $srcy++;
-                $desty++;
-            }
-
-            $destx++;
-            $srcx++;
-        }
-
+        my $destx = $layout_x + $padding;
+        my $desty = $layout_y + $padding;
+        $Target->Composite(image=>$I,compose=>'xor',geometry=>"+$destx+$desty");
     }
 
     # write target image
@@ -1338,6 +1322,7 @@ sub _get_image_properties {
     my $image_path = shift;
     my $remove_source_padding = shift;
     my $add_extra_padding = shift;
+    my $enable_colormap = shift;
 
     my $Image = Image::Magick->new();
 
@@ -1430,30 +1415,13 @@ sub _get_image_properties {
         $rh_info->{height} = $first_bottom - $first_top + 1;
     }
 
+    if ($enable_colormap) {
+      $self->_generate_color_map_for_image_properties($Image, $rh_info);
+    }
+
     # save the original width as it may change later
     $rh_info->{original_width} = $rh_info->{width};
     $rh_info->{original_height} = $rh_info->{height};
-
-    # Store information about the color of each pixel
-    $rh_info->{colors}{map} = {};
-    my $x = 0;
-    for my $fake_x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
-
-        my $y = 0;
-        for my $fake_y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
-
-            my $color = $Image->Get(
-                sprintf('pixel[%s,%s]', $fake_x, $fake_y),
-            );
-
-            push @{$rh_info->{colors}{map}{$color}}, {
-                x => $x,
-                y => $y,
-            };
-
-            $y++;
-        }
-    }
 
     if ($add_extra_padding) {
         # fix the width of the image if a padding was added, as if the image
@@ -1671,6 +1639,42 @@ sub _verbose {
     if ($self->{is_verbose}) {
         print "${msg}\n";
     }
+}
+
+=head2 _generate_colormap_for_image_properties
+
+Load the color map into the image properties hashref
+Previously this happened every time in _get_image_properties, however
+it took 85% of the execution time so it was moved to only
+be generated when needed
+
+=cut
+
+
+sub _generate_colormap_for_image_properties {
+    my($self, $Image, $rh_info) = @_;
+    return 1 if ref  $rh_info->{colors}{map};
+    # Store information about the color of each pixel
+    $rh_info->{colors}{map} = {};
+    my $x = 0;
+    for my $fake_x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
+
+        my $y = 0;
+        for my $fake_y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
+
+            my $color = $Image->Get(
+                sprintf('pixel[%s,%s]', $fake_x, $fake_y),
+            );
+
+            push @{$rh_info->{colors}{map}{$color}}, {
+                x => $x,
+                y => $y,
+            };
+
+            $y++;
+        }
+    }
+    return 1;
 }
 
 =head1 LICENSE AND COPYRIGHT
