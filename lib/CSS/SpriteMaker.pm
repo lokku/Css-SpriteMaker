@@ -1614,6 +1614,10 @@ sub _generate_color_histogram {
     my $self           = shift;
     my $rh_source_info = shift;
 
+    if (!$self->{enable_colormap}) {
+        die "cannot generate color histogram with enable_colormap option disabled";
+    }
+
     my %histogram;
     for my $id (sort { $a <=> $b } keys %$rh_source_info) {
         for my $color (sort keys %{ $rh_source_info->{$id}{colors}{map} }) {
