@@ -13,7 +13,7 @@ my %prereqs = (
 WriteMakefile(
     NAME => 'CSS::SpriteMaker',
     LICENSE => 'perl',
-    AUTHOR => q{Savio Dimatteo <savio@lokku.com>},
+    AUTHOR => q{Savio Dimatteo <darksmo@gmail.com>},
     VERSION_FROM => 'lib/CSS/SpriteMaker.pm',
     ABSTRACT_FROM => 'lib/CSS/SpriteMaker.pm',
     TEST_REQUIRES => {
