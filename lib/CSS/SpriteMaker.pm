@@ -1416,7 +1416,7 @@ sub _get_image_properties {
     }
 
     if ($enable_colormap) {
-      $self->_generate_color_map_for_image_properties($Image, $rh_info);
+        $self->_generate_colormap_for_image_properties($Image, $rh_info);
     }
 
     # save the original width as it may change later
@@ -1643,10 +1643,8 @@ sub _verbose {
 
 =head2 _generate_colormap_for_image_properties
 
-Load the color map into the image properties hashref
-Previously this happened every time in _get_image_properties, however
-it took 85% of the execution time so it was moved to only
-be generated when needed
+Load the color map into the image properties hashref. This method takes 85% of
+the execution time when the sprite is generated with enable_colormap = 1.
 
 =cut
 
