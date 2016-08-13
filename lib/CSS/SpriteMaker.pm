@@ -189,12 +189,12 @@ sub new {
 
     # defaults
     $opts{remove_source_padding} //= 0;
-    $opts{add_extra_padding}    //= 0;
+    $opts{add_extra_padding}     //= 0;
     $opts{verbose}               //= 0;
     $opts{format}                //= 'png';
     $opts{layout_name}           //= 'Packed';
     $opts{css_class_prefix}      //= '';
-    $opts{enable_colormap} //= 0;
+    $opts{enable_colormap}       //= 0;
     
     my $self = {
         css_class_prefix => $opts{css_class_prefix},
@@ -554,9 +554,11 @@ EONCLICK
             next if $key eq "colors";
             print $fh "<b>" . $key . "</b>: " . ($rh_source_info->{$key} // 'none') . "<br />";
         }
-        if (!$self->{enable_colormap}) {
+
         print $fh '<h3>Colors</h3>';
-            print $fh "<b>total</b>: " . $rh_source_info->{colors}{total} . '<br />';
+        print $fh "<b>total</b>: " . $rh_source_info->{colors}{total} . '<br />';
+
+        if ($self->{enable_colormap}) {
             for my $colors (sort keys %{$rh_source_info->{colors}{map}}) {
                 my ($r, $g, $b, $a) = split /,/, $colors;
                 my $rrgb = $r * 255 / $self->{color_max};
@@ -566,6 +568,7 @@ EONCLICK
                 print $fh '<div class="color" style="background-color: ' . "rgba($rrgb, $grgb, $brgb, $argb);\"></div>";
             }
         }
+
         print $fh "  </div>";
         print $fh '</div>';
     }
