@@ -22,11 +22,11 @@ CSS::SpriteMaker - Combine several images into a single CSS sprite
 
 =head1 VERSION
 
-Version 0.15
+Version 1.01
 
 =cut
 
-our $VERSION = '0.15';
+our $VERSION = '1.01';
 
 
 =head1 SYNOPSIS
