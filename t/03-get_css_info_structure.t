@@ -33,7 +33,7 @@ use_ok('CSS::SpriteMaker');
 ##
 my $apple_padded_width = 128;
 my $apple_padded_height = 128;
-my $apple_padding_horizontal = 18;
+my $apple_padding_horizontal = 19;
 my $apple_padding_vertical = 0;
 {
     my $SpriteMaker = CSS::SpriteMaker->new(

@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use File::Find;
-use Image::Magick;
+use GD;
 use List::Util qw(max);
 
 use Module::Pluggable 
@@ -219,7 +219,7 @@ sub new {
         rc_override_classname => $opts{rc_override_classname},
 
         # the maximum color value
-        color_max => 2 ** Image::Magick->QuantumDepth - 1,
+        color_max => 2 ** 8 - 1,
     };
 
     return bless $self, $class;
@@ -1239,27 +1239,18 @@ sub _write_image {
         $Layout->height())
     );
 
-    my $Target = Image::Magick->new();
-
-    $Target->Set(size => sprintf("%sx%s",
+    my $Target = GD::Image->new(
         $Layout->width(),
-        $Layout->height()
-    ));
+        $Layout->height(),
+        1
+    );
 
-    # prepare the target image
-    if (my $err = $Target->ReadImage('xc:white')) {
-        warn $err;
-    }
-    $Target->Set(type => 'TruecolorMatte');
-    
+    $Target->saveAlpha(1);
+    $Target->alphaBlending(0);
+
     # make it transparent
     $self->_verbose(" - clearing canvas");
-    $Target->Draw(
-        fill => 'transparent', 
-        primitive => 'rectangle', 
-        points => sprintf("0,0 %s,%s", $Layout->width(), $Layout->height())
-    );
-    $Target->Transparent('color' => 'white');
+    $Target->filledRectangle(0, 0, $Layout->width(), $Layout->height(), 0x7fffffff);
 
     # place each image according to the layout
     ITEM_ID:
@@ -1275,10 +1266,9 @@ sub _write_image {
             $layout_y,
             $layout_x
         ));
-        my $I = Image::Magick->new(); 
-        my $err = $I->Read($rh_source_info->{pathname});
-        if ($err) {
-            warn $err;
+        my $I = GD::Image->new($rh_source_info->{pathname});
+        unless (defined $I) {
+            warn $rh_source_info->{format};
             next ITEM_ID;
         }
 
@@ -1286,11 +1276,23 @@ sub _write_image {
 
         my $destx = $layout_x + $padding;
         my $desty = $layout_y + $padding;
-        $Target->Composite(image=>$I,compose=>'xor',geometry=>"+$destx+$desty");
+        $Target->copy($I, $destx, $desty, 0, 0, $rh_source_info->{width}, $rh_source_info->{height});
     }
 
     # write target image
-    my $err = $Target->Write("$output_format:".$target_file);
+    my $err;
+    if (my $func = $Target->can($output_format)) {
+        if (open(my $fh, '>', $target_file)) {
+            print {$fh} $Target->$func();
+            close($fh);
+        }
+        else {
+            $err = $!;
+        }
+    }
+    else {
+        $err = 'Unsupported output format';
+    }
     if ($err) {
         warn "unable to obtain $target_file for writing it as $output_format. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats. Error: $err";
 
@@ -1327,22 +1329,16 @@ sub _get_image_properties {
     my $add_extra_padding = shift;
     my $enable_colormap = shift;
 
-    my $Image = Image::Magick->new();
-
-    my $err = $Image->Read($image_path);
-    if ($err) {
-        warn $err;
-        return {};
-    }
+    GD::Image->trueColor(1);
+    my $Image = GD::Image->new($image_path) or return {};
 
     my $rh_info = {};
     $rh_info->{first_pixel_x} = 0,
     $rh_info->{first_pixel_y} = 0,
-    $rh_info->{width} = $Image->Get('columns');
-    $rh_info->{height} = $Image->Get('rows');
-    $rh_info->{comment} = $Image->Get('comment');
-    $rh_info->{colors}{total} = $Image->Get('colors');
-    $rh_info->{format} = $Image->Get('magick');
+    ($rh_info->{width}, $rh_info->{height}) = $Image->getBounds();
+    $rh_info->{comment} = '';
+    $rh_info->{colors}{total} = $Image->newFromPngData($Image->png(), 0)->colorsTotal();
+    $rh_info->{format} = $image_path =~ s/\.([^.])$/$1/r;
 
     if ($remove_source_padding) {
         #
@@ -1360,23 +1356,24 @@ sub _get_image_properties {
         my $first_right = $w-1;
         my $left_found = 0;
         my $right_found = 0;
+        my $max_alpha = 0x7f;
 
         BORDER_HORIZONTAL:
         for my $x (0 .. ceil(($w-1)/2)) {
             my $xr = $w-$x-1;
             for my $y (0..$h-1) {
-                my $al = $Image->Get(sprintf('pixel[%s,%s]', $x, $y));
-                my $ar = $Image->Get(sprintf('pixel[%s,%s]', $xr, $y));
-                
-                # remove rgb info and only get alpha value
-                $al =~ s/^.+,//;
-                $ar =~ s/^.+,//;
+                my $al = $Image->getPixel($x, $y);
+                my $ar = $Image->getPixel($xr, $y);
 
-                if ($al != $self->{color_max} && !$left_found) {
+                # remove rgb info and only get alpha value
+                $al = $Image->alpha($al);
+                $ar = $Image->alpha($ar);
+
+                if ($al != $max_alpha && !$left_found) {
                     $first_left = $x;
                     $left_found = 1;
                 }
-                if ($ar != $self->{color_max} && !$right_found) {
+                if ($ar != $max_alpha && !$right_found) {
                     $first_right = $xr;
                     $right_found = 1;
                 }
@@ -1396,18 +1393,18 @@ sub _get_image_properties {
         for my $y (0 .. ceil(($h-1)/2)) {
             my $yb = $h-$y-1;
             for my $x (0 .. $w-1) {
-                my $at = $Image->Get(sprintf('pixel[%s,%s]', $x, $y));
-                my $ab = $Image->Get(sprintf('pixel[%s,%s]', $x, $yb));
-                
-                # remove rgb info and only get alpha value
-                $at =~ s/^.+,//;
-                $ab =~ s/^.+,//;
+                my $at = $Image->getPixel($x, $y);
+                my $ab = $Image->getPixel($x, $yb);
 
-                if ($at != $self->{color_max} && !$top_found) {
+                # remove rgb info and only get alpha value
+                $at = $Image->alpha($at);
+                $ab = $Image->alpha($ab);
+
+                if ($at != $max_alpha && !$top_found) {
                     $first_top = $y;
                     $top_found = 1;
                 }
-                if ($ab != $self->{color_max} && !$bottom_found) {
+                if ($ab != $max_alpha && !$bottom_found) {
                     $first_bottom = $yb;
                     $bottom_found = 1;
                 }
@@ -1667,9 +1664,7 @@ sub _generate_colormap_for_image_properties {
         my $y = 0;
         for my $fake_y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
 
-            my $color = $Image->Get(
-                sprintf('pixel[%s,%s]', $fake_x, $fake_y),
-            );
+            my $color = $Image->getPixel($fake_x, $fake_y);
 
             push @{$rh_info->{colors}{map}{$color}}, {
                 x => $x,
