@@ -557,16 +557,15 @@ EONCLICK
         }
 
         print $fh '<h3>Colors</h3>';
-        print $fh "<b>total</b>: " . $rh_source_info->{colors}{total} . '<br />';
 
         if ($self->{enable_colormap}) {
+            print $fh "<b>total</b>: " . $rh_source_info->{colors}{total} . '<br />';
             for my $colors (sort keys %{$rh_source_info->{colors}{map}}) {
                 my ($r, $g, $b, $a) = split /,/, $colors;
-                my $rrgb = $r * 255 / $self->{color_max};
-                my $grgb = $g * 255 / $self->{color_max};
-                my $brgb = $b * 255 / $self->{color_max};
-                my $argb = 255 - ($a * 255 / $self->{color_max});
-                print $fh '<div class="color" style="background-color: ' . "rgba($rrgb, $grgb, $brgb, $argb);\"></div>";
+
+                $a = 255 - $a;
+
+                print $fh '<div class="color" style="background-color: ' . "rgba($r, $g, $b, $a);\"></div>";
             }
         }
 
@@ -1317,6 +1316,28 @@ sub _write_image {
     
 }
 
+=head2 _get_total_colors
+
+Return the total number of different colors in the image
+
+=cut
+
+sub _get_total_colors {
+    my($self, $Image, $rh_info) = @_;
+    return 1 if ref  $rh_info->{colors}{map};
+    # Store information about the color of each pixel
+    my $rh_colors = {};
+    for my $fake_x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
+        for my $fake_y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
+            my $c = $Image->getPixel($fake_x, $fake_y);
+
+            $rh_colors->{$c} = 1;
+        }
+    }
+
+    return scalar keys %$rh_colors;
+}
+
 =head2 _get_image_properties
 
 Return an hashref of information about the image at the given pathname.
@@ -1338,7 +1359,6 @@ sub _get_image_properties {
     $rh_info->{first_pixel_y} = 0,
     ($rh_info->{width}, $rh_info->{height}) = $Image->getBounds();
     $rh_info->{comment} = '';
-    $rh_info->{colors}{total} = $Image->newFromPngData($Image->png(), 0)->colorsTotal();
     $rh_info->{format} = $image_path =~ s/\.([^.])$/$1/r;
 
     if ($remove_source_padding) {
@@ -1417,6 +1437,7 @@ sub _get_image_properties {
     }
 
     if ($enable_colormap) {
+        $rh_info->{colors}{total} = $self->_get_total_colors($Image, $rh_info);
         $self->_generate_colormap_for_image_properties($Image, $rh_info);
     }
 

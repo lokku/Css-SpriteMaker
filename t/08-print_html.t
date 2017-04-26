@@ -39,17 +39,19 @@ for my $rh_test (@$ra_fixture) {
     close $fh;
 
     is(length $out_html > 100, 1, 'more than 100 characters returned for html sample page');
-    if ($out_html =~ m@<h3>Colors</h3><b>total</b>:\s\d+@) {
-        pass("colors appear in html when $rh_test->{id}");
-    }
-    else {
-        fail("colors appear in html with enable_colormap = $rh_test->{enable_colormap}");
-    }
 
     if ($out_html =~ m@<div class="color".+?rgba@g) {
         is(1, $rh_test->{expected_color_markup}, "color markup appears as expected when $rh_test->{id}");
+
+        $out_html =~ m@<h3>Colors</h3><b>total</b>:\s\d+@
+            ? pass("colors appear in html when $rh_test->{id}")
+            : fail("colors appear in html with enable_colormap = $rh_test->{enable_colormap}");
     } else {
         is(0, $rh_test->{expected_color_markup}, "color markup appears as expected when $rh_test->{id}");
+
+        $out_html =~ m@<h3>Colors</h3><b>total</b>:\s\d+@
+            ? fail("colors appear in html with enable_colormap = $rh_test->{enable_colormap}")
+            : pass("colors appear in html when $rh_test->{id}");
     }
 }
 
