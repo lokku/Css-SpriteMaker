@@ -1686,15 +1686,20 @@ sub _generate_colormap_for_image_properties {
         my $y = 0;
         for my $fake_y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
 
-            my $color = $Image->getPixel($fake_x, $fake_y);
+            my $color_index = $Image->getPixel($fake_x, $fake_y);
+            my ($r, $g, $b) = $Image->rgb($color_index);
+            my $a = $Image->alpha($color_index);
+            my $parsable_color = "$r,$g,$b,$a";
 
-            push @{$rh_info->{colors}{map}{$color}}, {
+            push @{$rh_info->{colors}{map}{$parsable_color}}, {
                 x => $x,
                 y => $y,
             };
 
             $y++;
         }
+
+        $x++;
     }
     return 1;
 }
