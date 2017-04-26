@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use File::Find;
-use Image::Magick;
+use GD;
 use List::Util qw(max);
 
 use Module::Pluggable 
@@ -22,11 +22,11 @@ CSS::SpriteMaker - Combine several images into a single CSS sprite
 
 =head1 VERSION
 
-Version 0.15
+Version 1.01
 
 =cut
 
-our $VERSION = '0.15';
+our $VERSION = '1.01';
 
 
 =head1 SYNOPSIS
@@ -64,6 +64,7 @@ our $VERSION = '0.15';
         target_file => '/tmp/test/mysprite.png',
         layout_name => 'Packed',    # optional
         remove_source_padding => 1, # optional
+        enable_colormap => 1,       # optional
         add_extra_padding => 31,    # optional +31px padding around all images
         format => 'png8',           # optional
     );
@@ -148,7 +149,7 @@ Create and configure a new CSS::SpriteMaker object.
 
 The object can be initialised as follows:
     
-    my $SpriteMaker = CSS::SpriteMaker->new({
+    my $SpriteMaker = CSS::SpriteMaker->new(
         rc_filename_to_classname => sub { my $filename = shift; ... }, # optional
         css_class_prefix      => 'myicon-',                            # optional
         rc_override_classname => sub { my $css_class = shift; ... }    # optional
@@ -157,7 +158,8 @@ The object can be initialised as follows:
         remove_source_padding => 1,             # optional
         add_extra_padding     => 1,             # optional
         verbose => 1,                           # optional
-    });
+        enable_colormap => 1,                  # optional
+    );
     
 Default values are set to:
 
@@ -166,6 +168,8 @@ Default values are set to:
 =item remove_source_padding : false,
 
 =item verbose : false,
+
+=item enable_colormap : false,
 
 =item format  : png,
 
@@ -185,11 +189,12 @@ sub new {
 
     # defaults
     $opts{remove_source_padding} //= 0;
-    $opts{add_extra_padding}    //= 0;
+    $opts{add_extra_padding}     //= 0;
     $opts{verbose}               //= 0;
     $opts{format}                //= 'png';
     $opts{layout_name}           //= 'Packed';
     $opts{css_class_prefix}      //= '';
+    $opts{enable_colormap}       //= 0;
     
     my $self = {
         css_class_prefix => $opts{css_class_prefix},
@@ -199,6 +204,7 @@ sub new {
         is_verbose => $opts{verbose},
         format => $opts{format},
         remove_source_padding => $opts{remove_source_padding},
+        enable_colormap => $opts{enable_colormap},
         add_extra_padding => $opts{add_extra_padding},
         output_css_file => $opts{output_css_file},
         output_html_file => $opts{output_html_file},
@@ -213,7 +219,7 @@ sub new {
         rc_override_classname => $opts{rc_override_classname},
 
         # the maximum color value
-        color_max => 2 ** Image::Magick->QuantumDepth - 1,
+        color_max => 2 ** 8 - 1,
     };
 
     return bless $self, $class;
@@ -236,6 +242,7 @@ glue layout.
               }
               include_in_css => 0,        # optional
               remove_source_padding => 1, # optional (defaults to 0)
+              enable_colormap => 1, # optional (defaults to 0)
               add_extra_padding     => 40, # optional, px (defaults to 0px)
             },
         ],
@@ -451,7 +458,7 @@ sub print_html {
 
     my $stylesheet = $self->_get_stylesheet_string({}, %options);
 
-    print $fh '<html><head><style type="text/css">';
+    print $fh '<!DOCTYPE html><html><head><style type="text/css">';
     print $fh $stylesheet;
     print $fh <<EOCSS;
     h1 {
@@ -487,23 +494,9 @@ sub print_html {
 EOCSS
     print $fh '</style></head><body><h1>CSS::SpriteMaker Image Information</h1>';
 
-    # html
-    for my $id (sort { $a <=> $b } keys %$rh_sources_info) {
-        my $rh_source_info = $rh_sources_info->{$id};
-        
-        my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
-        $self->_verbose(
-            sprintf("%s -> %s", $rh_source_info->{name}, $css_class)
-        );
-
-        $css_class =~ s/[.]//;
-
-        my $is_included = $rh_source_info->{include_in_css};
-        my $width = $rh_source_info->{original_width};
-        my $height = $rh_source_info->{original_height};
-
-        my $onclick = <<EONCLICK;
-    if (typeof current !== 'undefined' && current !== this) {
+    print $fh <<EONCLICK;
+    <script>
+    function onIconClicked () { if (typeof current !== 'undefined' && current !== this) {
         current.style.width = current.w;
         current.style.height = current.h;
         current.style.position = '';
@@ -525,14 +518,28 @@ EOCSS
         delete this.w;
         delete this.h;
         current = undefined;
-    }
+    } };
+    </script>
 EONCLICK
+
+    # html
+    for my $id (sort { $a <=> $b } keys %$rh_sources_info) {
+        my $rh_source_info = $rh_sources_info->{$id};
+        my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
+        $self->_verbose(
+            sprintf("%s -> %s", $rh_source_info->{name}, $css_class)
+        );
+
+        $css_class =~ s/[.]//;
+
+        my $is_included = $rh_source_info->{include_in_css};
+        my $width = $rh_source_info->{original_width};
+        my $height = $rh_source_info->{original_height};
 
 
         print $fh sprintf(
-            '<div class="item-container%s" onclick="%s" style="padding: 1em; width: %spx; height: %spx;">',
+            '<div class="item-container%s" onclick="onIconClicked.bind(this)()" style="padding: 1em; width: %spx; height: %spx;">',
             $is_included ? ' included' : ' not-included',
-            $onclick,
             $width, $height
         );
 
@@ -548,16 +555,20 @@ EONCLICK
             next if $key eq "colors";
             print $fh "<b>" . $key . "</b>: " . ($rh_source_info->{$key} // 'none') . "<br />";
         }
+
         print $fh '<h3>Colors</h3>';
+
+        if ($self->{enable_colormap}) {
             print $fh "<b>total</b>: " . $rh_source_info->{colors}{total} . '<br />';
             for my $colors (sort keys %{$rh_source_info->{colors}{map}}) {
                 my ($r, $g, $b, $a) = split /,/, $colors;
-                my $rrgb = $r * 255 / $self->{color_max};
-                my $grgb = $g * 255 / $self->{color_max};
-                my $brgb = $b * 255 / $self->{color_max};
-                my $argb = 255 - ($a * 255 / $self->{color_max});
-                print $fh '<div class="color" style="background-color: ' . "rgba($rrgb, $grgb, $brgb, $argb);\"></div>";
+
+                $a = 255 - $a;
+
+                print $fh '<div class="color" style="background-color: ' . "rgba($r, $g, $b, $a);\"></div>";
             }
+        }
+
         print $fh "  </div>";
         print $fh '</div>';
     }
@@ -694,6 +705,7 @@ sub _image_locations_to_source_info {
     my $remove_source_padding = shift;
     my $add_extra_padding = shift;
     my $include_in_css = shift // 1;
+    my $enable_colormap = shift;
 
     my %source_info;
     
@@ -707,6 +719,7 @@ sub _image_locations_to_source_info {
             $rh_location->{pathname},
             $remove_source_padding,
             $add_extra_padding,
+            $enable_colormap
         )};
 
         # add whether to include this item in the css or not
@@ -1006,6 +1019,7 @@ sub _ensure_sources_info {
     ## - otherwise default to the option in $self
     my $remove_source_padding = $self->{remove_source_padding};
     my $add_extra_padding = $self->{add_extra_padding};
+    my $enable_colormap = $self->{enable_colormap};
     if (exists $options{remove_source_padding} 
         && defined $options{remove_source_padding}) {
 
@@ -1016,7 +1030,11 @@ sub _ensure_sources_info {
 
         $add_extra_padding = $options{add_extra_padding};
     }
+    if (exists $options{enable_colormap}
+        && defined $options{enable_colormap}) {
 
+        $enable_colormap = $options{enable_colormap};
+    }
 
     my $rh_source_info;
 
@@ -1049,7 +1067,8 @@ sub _ensure_sources_info {
             \@locations,
             $remove_source_padding,
             $add_extra_padding,
-            $include_in_css
+            $include_in_css,
+            $enable_colormap
         );
     }
     
@@ -1220,27 +1239,18 @@ sub _write_image {
         $Layout->height())
     );
 
-    my $Target = Image::Magick->new();
-
-    $Target->Set(size => sprintf("%sx%s",
+    my $Target = GD::Image->new(
         $Layout->width(),
-        $Layout->height()
-    ));
+        $Layout->height(),
+        1
+    );
 
-    # prepare the target image
-    if (my $err = $Target->ReadImage('xc:white')) {
-        warn $err;
-    }
-    $Target->Set(type => 'TruecolorMatte');
-    
+    $Target->saveAlpha(1);
+    $Target->alphaBlending(0);
+
     # make it transparent
     $self->_verbose(" - clearing canvas");
-    $Target->Draw(
-        fill => 'transparent', 
-        primitive => 'rectangle', 
-        points => sprintf("0,0 %s,%s", $Layout->width(), $Layout->height())
-    );
-    $Target->Transparent('color' => 'white');
+    $Target->filledRectangle(0, 0, $Layout->width(), $Layout->height(), 0x7fffffff);
 
     # place each image according to the layout
     ITEM_ID:
@@ -1256,54 +1266,33 @@ sub _write_image {
             $layout_y,
             $layout_x
         ));
-        my $I = Image::Magick->new(); 
-        my $err = $I->Read($rh_source_info->{pathname});
-        if ($err) {
-            warn $err;
+        my $I = GD::Image->new($rh_source_info->{pathname});
+        unless (defined $I) {
+            warn $rh_source_info->{format};
             next ITEM_ID;
         }
 
         my $padding = $rh_source_info->{add_extra_padding};
 
-        # place soure image in the target image according to the layout
-        my $transparent_p = $I->Get('transparent-color');
-
-        # the first pixel of the source image (maybe inner)
-
-        my $endx = $rh_source_info->{first_pixel_x} + $rh_source_info->{original_width};
-        my $endy = $rh_source_info->{first_pixel_y} + $rh_source_info->{original_height};
-
-        my $srcx = $rh_source_info->{first_pixel_x};
-
-        my $destx = $layout_x;
-
-        while ($srcx < $endx) {
-
-            my $srcy = $rh_source_info->{first_pixel_y};
-            my $desty = $layout_y;
-
-            while ($srcy < $endy) {
-
-                my $p = $I->Get(
-                    sprintf('pixel[%s,%s]', $srcx, $srcy),
-                );
-
-                $Target->Set(
-                    sprintf('pixel[%s,%s]', $destx + $padding, $desty + $padding), $p
-                ); 
-
-                $srcy++;
-                $desty++;
-            }
-
-            $destx++;
-            $srcx++;
-        }
-
+        my $destx = $layout_x + $padding;
+        my $desty = $layout_y + $padding;
+        $Target->copy($I, $destx, $desty, 0, 0, $rh_source_info->{width}, $rh_source_info->{height});
     }
 
     # write target image
-    my $err = $Target->Write("$output_format:".$target_file);
+    my $err;
+    if (my $func = $Target->can($output_format)) {
+        if (open(my $fh, '>', $target_file)) {
+            print {$fh} $Target->$func();
+            close($fh);
+        }
+        else {
+            $err = $!;
+        }
+    }
+    else {
+        $err = 'Unsupported output format';
+    }
     if ($err) {
         warn "unable to obtain $target_file for writing it as $output_format. Perhaps you have specified an invalid format. Check http://www.imagemagick.org/script/formats.php for a list of supported formats. Error: $err";
 
@@ -1327,6 +1316,28 @@ sub _write_image {
     
 }
 
+=head2 _get_total_colors
+
+Return the total number of different colors in the image
+
+=cut
+
+sub _get_total_colors {
+    my($self, $Image, $rh_info) = @_;
+    return 1 if ref  $rh_info->{colors}{map};
+    # Store information about the color of each pixel
+    my $rh_colors = {};
+    for my $fake_x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
+        for my $fake_y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
+            my $c = $Image->getPixel($fake_x, $fake_y);
+
+            $rh_colors->{$c} = 1;
+        }
+    }
+
+    return scalar keys %$rh_colors;
+}
+
 =head2 _get_image_properties
 
 Return an hashref of information about the image at the given pathname.
@@ -1338,23 +1349,17 @@ sub _get_image_properties {
     my $image_path = shift;
     my $remove_source_padding = shift;
     my $add_extra_padding = shift;
+    my $enable_colormap = shift;
 
-    my $Image = Image::Magick->new();
-
-    my $err = $Image->Read($image_path);
-    if ($err) {
-        warn $err;
-        return {};
-    }
+    GD::Image->trueColor(1);
+    my $Image = GD::Image->new($image_path) or return {};
 
     my $rh_info = {};
     $rh_info->{first_pixel_x} = 0,
     $rh_info->{first_pixel_y} = 0,
-    $rh_info->{width} = $Image->Get('columns');
-    $rh_info->{height} = $Image->Get('rows');
-    $rh_info->{comment} = $Image->Get('comment');
-    $rh_info->{colors}{total} = $Image->Get('colors');
-    $rh_info->{format} = $Image->Get('magick');
+    ($rh_info->{width}, $rh_info->{height}) = $Image->getBounds();
+    $rh_info->{comment} = '';
+    $rh_info->{format} = $image_path =~ s/\.([^.])$/$1/r;
 
     if ($remove_source_padding) {
         #
@@ -1372,23 +1377,24 @@ sub _get_image_properties {
         my $first_right = $w-1;
         my $left_found = 0;
         my $right_found = 0;
+        my $max_alpha = 0x7f;
 
         BORDER_HORIZONTAL:
         for my $x (0 .. ceil(($w-1)/2)) {
             my $xr = $w-$x-1;
             for my $y (0..$h-1) {
-                my $al = $Image->Get(sprintf('pixel[%s,%s]', $x, $y));
-                my $ar = $Image->Get(sprintf('pixel[%s,%s]', $xr, $y));
-                
-                # remove rgb info and only get alpha value
-                $al =~ s/^.+,//;
-                $ar =~ s/^.+,//;
+                my $al = $Image->getPixel($x, $y);
+                my $ar = $Image->getPixel($xr, $y);
 
-                if ($al != $self->{color_max} && !$left_found) {
+                # remove rgb info and only get alpha value
+                $al = $Image->alpha($al);
+                $ar = $Image->alpha($ar);
+
+                if ($al != $max_alpha && !$left_found) {
                     $first_left = $x;
                     $left_found = 1;
                 }
-                if ($ar != $self->{color_max} && !$right_found) {
+                if ($ar != $max_alpha && !$right_found) {
                     $first_right = $xr;
                     $right_found = 1;
                 }
@@ -1408,18 +1414,18 @@ sub _get_image_properties {
         for my $y (0 .. ceil(($h-1)/2)) {
             my $yb = $h-$y-1;
             for my $x (0 .. $w-1) {
-                my $at = $Image->Get(sprintf('pixel[%s,%s]', $x, $y));
-                my $ab = $Image->Get(sprintf('pixel[%s,%s]', $x, $yb));
-                
-                # remove rgb info and only get alpha value
-                $at =~ s/^.+,//;
-                $ab =~ s/^.+,//;
+                my $at = $Image->getPixel($x, $y);
+                my $ab = $Image->getPixel($x, $yb);
 
-                if ($at != $self->{color_max} && !$top_found) {
+                # remove rgb info and only get alpha value
+                $at = $Image->alpha($at);
+                $ab = $Image->alpha($ab);
+
+                if ($at != $max_alpha && !$top_found) {
                     $first_top = $y;
                     $top_found = 1;
                 }
-                if ($ab != $self->{color_max} && !$bottom_found) {
+                if ($ab != $max_alpha && !$bottom_found) {
                     $first_bottom = $yb;
                     $bottom_found = 1;
                 }
@@ -1430,30 +1436,14 @@ sub _get_image_properties {
         $rh_info->{height} = $first_bottom - $first_top + 1;
     }
 
+    if ($enable_colormap) {
+        $rh_info->{colors}{total} = $self->_get_total_colors($Image, $rh_info);
+        $self->_generate_colormap_for_image_properties($Image, $rh_info);
+    }
+
     # save the original width as it may change later
     $rh_info->{original_width} = $rh_info->{width};
     $rh_info->{original_height} = $rh_info->{height};
-
-    # Store information about the color of each pixel
-    $rh_info->{colors}{map} = {};
-    my $x = 0;
-    for my $fake_x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
-
-        my $y = 0;
-        for my $fake_y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
-
-            my $color = $Image->Get(
-                sprintf('pixel[%s,%s]', $fake_x, $fake_y),
-            );
-
-            push @{$rh_info->{colors}{map}{$color}}, {
-                x => $x,
-                y => $y,
-            };
-
-            $y++;
-        }
-    }
 
     if ($add_extra_padding) {
         # fix the width of the image if a padding was added, as if the image
@@ -1646,6 +1636,10 @@ sub _generate_color_histogram {
     my $self           = shift;
     my $rh_source_info = shift;
 
+    if (!$self->{enable_colormap}) {
+        die "cannot generate color histogram with enable_colormap option disabled";
+    }
+
     my %histogram;
     for my $id (sort { $a <=> $b } keys %$rh_source_info) {
         for my $color (sort keys %{ $rh_source_info->{$id}{colors}{map} }) {
@@ -1671,6 +1665,43 @@ sub _verbose {
     if ($self->{is_verbose}) {
         print "${msg}\n";
     }
+}
+
+=head2 _generate_colormap_for_image_properties
+
+Load the color map into the image properties hashref. This method takes 85% of
+the execution time when the sprite is generated with enable_colormap = 1.
+
+=cut
+
+
+sub _generate_colormap_for_image_properties {
+    my($self, $Image, $rh_info) = @_;
+    return 1 if ref  $rh_info->{colors}{map};
+    # Store information about the color of each pixel
+    $rh_info->{colors}{map} = {};
+    my $x = 0;
+    for my $fake_x ($rh_info->{first_pixel_x} .. $rh_info->{width}) {
+
+        my $y = 0;
+        for my $fake_y ($rh_info->{first_pixel_y} .. $rh_info->{height}) {
+
+            my $color_index = $Image->getPixel($fake_x, $fake_y);
+            my ($r, $g, $b) = $Image->rgb($color_index);
+            my $a = $Image->alpha($color_index);
+            my $parsable_color = "$r,$g,$b,$a";
+
+            push @{$rh_info->{colors}{map}{$parsable_color}}, {
+                x => $x,
+                y => $y,
+            };
+
+            $y++;
+        }
+
+        $x++;
+    }
+    return 1;
 }
 
 =head1 LICENSE AND COPYRIGHT

@@ -6,7 +6,7 @@ use ExtUtils::MakeMaker;
 my %prereqs = (
     'File::Find'     => 0,
     'Getopt::Long'   => 0,
-    'Image::Magick'  => 0,
+    'GD'  => 2.57,
     'Module::Pluggable' => 0,
 );
 

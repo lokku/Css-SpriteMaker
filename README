@@ -1,7 +1,7 @@
 CSS-SpriteMaker
 
 
-This archive contains the distribution CSS-SpriteMaker, version 0.15:
+This archive contains the distribution CSS-SpriteMaker, version 1.01:
 
     CSS::SpriteMaker provides methods to combine several images into a single
     sprite, mainly for web optimization.
@@ -10,10 +10,10 @@ INSTALLATION
 
 To install this module, run the following commands:
 
-    perl Build.PL
-    ./Build
-    ./Build test
-    ./Build install
+    perl Makefile.PL
+    make
+    make test
+    make install
 
 SUPPORT AND DOCUMENTATION
 
