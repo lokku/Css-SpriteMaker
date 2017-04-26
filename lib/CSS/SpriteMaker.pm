@@ -458,7 +458,7 @@ sub print_html {
 
     my $stylesheet = $self->_get_stylesheet_string({}, %options);
 
-    print $fh '<html><head><style type="text/css">';
+    print $fh '<!DOCTYPE html><html><head><style type="text/css">';
     print $fh $stylesheet;
     print $fh <<EOCSS;
     h1 {
@@ -494,22 +494,9 @@ sub print_html {
 EOCSS
     print $fh '</style></head><body><h1>CSS::SpriteMaker Image Information</h1>';
 
-    # html
-    for my $id (sort { $a <=> $b } keys %$rh_sources_info) {
-        my $rh_source_info = $rh_sources_info->{$id};
-        my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
-        $self->_verbose(
-            sprintf("%s -> %s", $rh_source_info->{name}, $css_class)
-        );
-
-        $css_class =~ s/[.]//;
-
-        my $is_included = $rh_source_info->{include_in_css};
-        my $width = $rh_source_info->{original_width};
-        my $height = $rh_source_info->{original_height};
-
-        my $onclick = <<EONCLICK;
-    if (typeof current !== 'undefined' && current !== this) {
+    print $fh <<EONCLICK;
+    <script>
+    function onIconClicked () { if (typeof current !== 'undefined' && current !== this) {
         current.style.width = current.w;
         current.style.height = current.h;
         current.style.position = '';
@@ -531,14 +518,28 @@ EOCSS
         delete this.w;
         delete this.h;
         current = undefined;
-    }
+    } };
+    </script>
 EONCLICK
+
+    # html
+    for my $id (sort { $a <=> $b } keys %$rh_sources_info) {
+        my $rh_source_info = $rh_sources_info->{$id};
+        my $css_class = $self->_generate_css_class_name($rh_source_info->{name});
+        $self->_verbose(
+            sprintf("%s -> %s", $rh_source_info->{name}, $css_class)
+        );
+
+        $css_class =~ s/[.]//;
+
+        my $is_included = $rh_source_info->{include_in_css};
+        my $width = $rh_source_info->{original_width};
+        my $height = $rh_source_info->{original_height};
 
 
         print $fh sprintf(
-            '<div class="item-container%s" onclick="%s" style="padding: 1em; width: %spx; height: %spx;">',
+            '<div class="item-container%s" onclick="onIconClicked.bind(this)()" style="padding: 1em; width: %spx; height: %spx;">',
             $is_included ? ' included' : ' not-included',
-            $onclick,
             $width, $height
         );
 
